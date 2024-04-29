@@ -1,0 +1,24 @@
+{
+	"name": "thri-playground",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"build": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
+		"watch": "rollup -w --config rollup.config.ts --configPlugin @rollup/plugin-typescript"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"devDependencies": {
+		"@rollup/plugin-node-resolve": "^15.2.3",
+		"@rollup/plugin-typescript": "^11.1.6",
+		"@types/three": "^0.164.0",
+		"rollup": "^4.17.1",
+		"tslib": "^2.6.2",
+		"typescript": "^5.4.5"
+	},
+	"dependencies": {
+		"three": "^0.164.1"
+	}
+}
