@@ -1,3 +1,6 @@
 {
-    "include": ["src/**/*", "rollup.config.ts"],
+	"compilerOptions": {
+		"target": "es6"
+	},
+	"include": ["src/**/*", "rollup.config.ts"]
 }
