@@ -33143,7 +33143,7 @@ class RenderPass extends Pass {
 
 var depthVert = "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
 
-var depthFrag = "#include <packing>\n#define MAX_STEPS 100\n#define MAX_DIST 5.0\n#define SURF_DIST 0.0001\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float sdSphere(vec3 p,float radius){return(length(p)-radius);}float sceneDistance(vec3 p){return sdSphere(p,0.6);}float rayMarch(vec3 ro,vec3 rd,float viewZ){float dO=0.0;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;float dS=min(sceneDistance(p),viewZ-dO);dO+=dS;if(dO>MAX_DIST||abs(dS)<SURF_DIST){break;}}return dO;}vec3 GetNormal(vec3 p){float d=sceneDistance(p);vec2 e=vec2(0.001,0.0);vec3 n=d-vec3(sceneDistance(p-e.xyy),sceneDistance(p-e.yxy),sceneDistance(p-e.yyx));return normalize(n);}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=rayMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(0.0);if(d<MAX_DIST){vec3 p=rayOrigin+rayDirection*d;col=vec3(d/10.0);}gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
+var depthFrag = "#include <packing>\n#define MAX_STEPS 100\n#define MAX_DIST 10.0\n#define SURF_DIST 0.0001\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float sdSphere(vec3 p,float radius){return(length(p)-radius);}float sceneDistance(vec3 p){return sdSphere(p,0.6);}float rayMarch(vec3 ro,vec3 rd,float viewZ){float dO=0.0;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;float dS=min(sceneDistance(p),viewZ-dO);dO+=dS;if(dO>MAX_DIST||abs(dS)<SURF_DIST){break;}}return dO;}vec3 GetNormal(vec3 p){float d=sceneDistance(p);vec2 e=vec2(0.001,0.0);vec3 n=d-vec3(sceneDistance(p-e.xyy),sceneDistance(p-e.yxy),sceneDistance(p-e.yyx));return normalize(n);}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=rayMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(0.0);if(d<MAX_DIST){vec3 p=rayOrigin+rayDirection*d;col=vec3(d/10.0);}gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
 
 const DepthShader = {
     name: 'DepthShader',
@@ -33171,7 +33171,7 @@ class IShatMyselfPass extends Pass {
         this.resolution = resolution;
         this.depthBuffer = new WebGLRenderTarget(this.resolution.x, this.resolution.y);
         this.textureMatrix = new Matrix4();
-        this.downSampling = 4;
+        this.downSampling = 1;
         this.material = new ShaderMaterial({
             defines: Object.assign({}, DepthShader.defines),
             uniforms: DepthShader.uniforms,
@@ -33207,7 +33207,6 @@ class IShatMyselfPass extends Pass {
         renderer.render(this.scene, this.camera);
         this.scene.overrideMaterial = null;
         if (this.renderToScreen) {
-            // this.scene.overrideMaterial = this.material
             this.updateTextureMatrix();
             this.material.uniforms['depthTexture'].value = this.depthBuffer.texture;
             this.material.uniforms['textureMatrix'].value = this.textureMatrix;
@@ -33215,13 +33214,9 @@ class IShatMyselfPass extends Pass {
             renderer.setRenderTarget(null);
             renderer.clear();
             this.fsQuad.render(renderer);
-            // const scene2 = new Scene()
-            // scene2.add(new AxesHelper())
-            // renderer.render(scene2, this.camera)
         }
     }
 }
-// NOTE the other way is shown in examples/webgl_depth_texture.html
 
 let renderer, scene, camera, controls, light, composer;
 function animate() {
