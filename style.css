@@ -81,3 +81,19 @@ h6 {
 	font-size: inherit;
 	font-weight: inherit;
 }
+
+/* ------------------------------------------------------ */
+
+body {
+	font-family: Montserrat;
+	font-weight: 600;
+}
+
+ul {
+	margin: 20px;
+}
+
+ul li {
+	margin: 8px 0;
+	font-size: 1.2rem;
+}

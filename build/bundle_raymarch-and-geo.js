@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * @license
  * Copyright 2010-2024 Three.js Authors
@@ -33143,61 +33141,27 @@ class RenderPass extends Pass {
 
 }
 
+var depthVert = "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
+
+var depthFrag = "#include <packing>\n#define MAX_STEPS 100\n#define MAX_DIST 5.0\n#define SURF_DIST 0.0001\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float sdSphere(vec3 p,float radius){return(length(p)-radius);}float sceneDistance(vec3 p){return sdSphere(p,0.6);}float rayMarch(vec3 ro,vec3 rd,float viewZ){float dO=0.0;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;float dS=min(sceneDistance(p),viewZ-dO);dO+=dS;if(dO>MAX_DIST||abs(dS)<SURF_DIST){break;}}return dO;}vec3 GetNormal(vec3 p){float d=sceneDistance(p);vec2 e=vec2(0.001,0.0);vec3 n=d-vec3(sceneDistance(p-e.xyy),sceneDistance(p-e.yxy),sceneDistance(p-e.yyx));return normalize(n);}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=rayMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(0.0);if(d<MAX_DIST){vec3 p=rayOrigin+rayDirection*d;col=vec3(d/10.0);}gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
+
 const DepthShader = {
     name: 'DepthShader',
+    defines: {
+        DEPTH_PACKING: 1,
+        PERSPECTIVE_CAMERA: 1,
+    },
     uniforms: {
         depthTexture: { value: null },
         cameraNearFar: { value: new Vector2(0.5, 0.5) },
         textureMatrix: { value: null },
+        resolution: { value: null },
+        cameraWorldMatrix: { value: null },
+        cameraProjectionMatrixInverse: { value: null },
+        cameraPosition: { value: null },
     },
-    vertexShader: /* glsl */ `
-        #include <morphtarget_pars_vertex>
-        #include <skinning_pars_vertex>
-
-        varying vec4 projTexCoord;
-        varying vec4 vPosition;
-        uniform mat4 textureMatrix;
-
-        void main() {
-
-            #include <skinbase_vertex>
-            #include <begin_vertex>
-            #include <morphtarget_vertex>
-            #include <skinning_vertex>
-            #include <project_vertex>
-
-            vPosition = mvPosition;
-
-            vec4 worldPosition = vec4( transformed, 1.0 );
-
-            #ifdef USE_INSTANCING
-
-                worldPosition = instanceMatrix * worldPosition;
-
-            #endif
-            
-            worldPosition = modelMatrix * worldPosition;
-
-            projTexCoord = textureMatrix * worldPosition;
-
-        }
-    `,
-    fragmentShader: /* glsl */ `
-        #include <packing>
-        varying vec4 vPosition;
-        varying vec4 projTexCoord;
-        uniform sampler2D depthTexture;
-        uniform vec2 cameraNearFar;
-
-        void main() {
-
-            float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
-            float viewZ = - perspectiveDepthToViewZ( depth, cameraNearFar.x, cameraNearFar.y );
-			gl_FragColor.rgb = vec3( viewZ ); // in meters
-            gl_FragColor.a = 1.0;
-
-        }
-    `,
+    vertexShader: depthVert,
+    fragmentShader: depthFrag,
 };
 class IShatMyselfPass extends Pass {
     constructor(scene, camera, resolution) {
@@ -33209,6 +33173,7 @@ class IShatMyselfPass extends Pass {
         this.textureMatrix = new Matrix4();
         this.downSampling = 4;
         this.material = new ShaderMaterial({
+            defines: Object.assign({}, DepthShader.defines),
             uniforms: DepthShader.uniforms,
             vertexShader: DepthShader.vertexShader,
             fragmentShader: DepthShader.fragmentShader,
@@ -33216,6 +33181,7 @@ class IShatMyselfPass extends Pass {
             depthTest: false,
             depthWrite: false,
         });
+        this.fsQuad = new FullScreenQuad(this.material);
         this.depthMaterial = new MeshDepthMaterial();
         this.depthMaterial.side = DoubleSide;
         this.depthMaterial.depthPacking = RGBADepthPacking;
@@ -33223,8 +33189,13 @@ class IShatMyselfPass extends Pass {
         this.depthBuffer = new WebGLRenderTarget(this.resolution.x / this.downSampling, this.resolution.y / this.downSampling);
         this.depthBuffer.texture.name = 'Depth';
         this.depthBuffer.texture.generateMipmaps = false;
+        this.material.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far);
+        this.material.uniforms.resolution.value = new Vector2(resolution.x, resolution.y);
+        this.material.uniforms.cameraWorldMatrix.value = this.camera.matrixWorld;
+        this.material.uniforms.cameraProjectionMatrixInverse.value = this.camera.projectionMatrixInverse.clone();
     }
     updateTextureMatrix() {
+        // prettier-ignore
         this.textureMatrix.set(0.5, 0.0, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0);
         this.textureMatrix.multiply(this.camera.projectionMatrix);
         this.textureMatrix.multiply(this.camera.matrixWorldInverse);
@@ -33236,15 +33207,17 @@ class IShatMyselfPass extends Pass {
         renderer.render(this.scene, this.camera);
         this.scene.overrideMaterial = null;
         if (this.renderToScreen) {
-            this.scene.overrideMaterial = this.material;
+            // this.scene.overrideMaterial = this.material
             this.updateTextureMatrix();
-            this.material.uniforms['cameraNearFar'].value.set(this.camera.near, this.camera.far);
             this.material.uniforms['depthTexture'].value = this.depthBuffer.texture;
             this.material.uniforms['textureMatrix'].value = this.textureMatrix;
+            this.material.uniforms['cameraPosition'].value = this.camera.position;
             renderer.setRenderTarget(null);
             renderer.clear();
-            renderer.render(this.scene, this.camera);
-            this.scene.overrideMaterial = null;
+            this.fsQuad.render(renderer);
+            // const scene2 = new Scene()
+            // scene2.add(new AxesHelper())
+            // renderer.render(scene2, this.camera)
         }
     }
 }
