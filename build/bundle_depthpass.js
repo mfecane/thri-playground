@@ -33141,6 +33141,10 @@ class RenderPass extends Pass {
 
 }
 
+var depthVert = "#include <morphtarget_pars_vertex>\n#include <skinning_pars_vertex>\nvarying vec4 projTexCoord;varying vec4 vPosition;uniform mat4 textureMatrix;void main(){\n#include <skinbase_vertex>\n#include <begin_vertex>\n#include <morphtarget_vertex>\n#include <skinning_vertex>\n#include <project_vertex>\nvPosition=mvPosition;vec4 worldPosition=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\nworldPosition=instanceMatrix*worldPosition;\n#endif\nworldPosition=modelMatrix*worldPosition;projTexCoord=textureMatrix*worldPosition;}";
+
+var depthFrag = "#include <packing>\nvarying vec4 vPosition;varying vec4 projTexCoord;uniform sampler2D depthTexture;uniform vec2 cameraNearFar;void main(){float depth=unpackRGBAToDepth(texture2DProj(depthTexture,projTexCoord));float viewZ=-perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);gl_FragColor.rgb=vec3(viewZ);gl_FragColor.a=1.0;}";
+
 const DepthShader = {
     name: 'DepthShader',
     uniforms: {
@@ -33148,54 +33152,8 @@ const DepthShader = {
         cameraNearFar: { value: new Vector2(0.5, 0.5) },
         textureMatrix: { value: null },
     },
-    vertexShader: /* glsl */ `
-        #include <morphtarget_pars_vertex>
-        #include <skinning_pars_vertex>
-
-        varying vec4 projTexCoord;
-        varying vec4 vPosition;
-        uniform mat4 textureMatrix;
-
-        void main() {
-
-            #include <skinbase_vertex>
-            #include <begin_vertex>
-            #include <morphtarget_vertex>
-            #include <skinning_vertex>
-            #include <project_vertex>
-
-            vPosition = mvPosition;
-
-            vec4 worldPosition = vec4( transformed, 1.0 );
-
-            #ifdef USE_INSTANCING
-
-                worldPosition = instanceMatrix * worldPosition;
-
-            #endif
-            
-            worldPosition = modelMatrix * worldPosition;
-
-            projTexCoord = textureMatrix * worldPosition;
-
-        }
-    `,
-    fragmentShader: /* glsl */ `
-        #include <packing>
-        varying vec4 vPosition;
-        varying vec4 projTexCoord;
-        uniform sampler2D depthTexture;
-        uniform vec2 cameraNearFar;
-
-        void main() {
-
-            float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
-            float viewZ = - perspectiveDepthToViewZ( depth, cameraNearFar.x, cameraNearFar.y );
-			gl_FragColor.rgb = vec3( viewZ ); // in meters
-            gl_FragColor.a = 1.0;
-
-        }
-    `,
+    vertexShader: depthVert,
+    fragmentShader: depthFrag,
 };
 class IShatMyselfPass extends Pass {
     constructor(scene, camera, resolution) {
@@ -33223,6 +33181,7 @@ class IShatMyselfPass extends Pass {
         this.depthBuffer.texture.generateMipmaps = false;
     }
     updateTextureMatrix() {
+        // prettier-ignore
         this.textureMatrix.set(0.5, 0.0, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0);
         this.textureMatrix.multiply(this.camera.projectionMatrix);
         this.textureMatrix.multiply(this.camera.matrixWorldInverse);
