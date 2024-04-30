@@ -15,6 +15,7 @@ const DEFAULT = {
 
 export default [
 	{ ...DEFAULT, input: 'src/depthpass/index.ts', output: { file: 'public/build/bundle_depthpass.js' } },
+	{ ...DEFAULT, input: 'src/raymarch-test/index.ts', output: { file: 'public/build/bundle_raymarch-test.js' } },
 
 	{ ...DEFAULT, input: 'src/01/index.ts', output: { file: 'public/build/bundle1.js', format: 'cjs' } },
 	{ ...DEFAULT, input: 'src/02/index.ts', output: { file: 'public/build/bundle2.js', format: 'es' } },
