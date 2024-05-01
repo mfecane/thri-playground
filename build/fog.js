@@ -1,3 +1,35 @@
+/******************************************************************************
+Copyright (c) Microsoft Corporation.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+***************************************************************************** */
+/* global Reflect, Promise, SuppressedError, Symbol */
+
+
+function __awaiter(thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+}
+
+typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
+    var e = new Error(message);
+    return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
+};
+
 /**
  * @license
  * Copyright 2010-2024 Three.js Authors
@@ -30378,6 +30410,336 @@ class Scene extends Object3D {
 
 }
 
+class LineBasicMaterial extends Material {
+
+	constructor( parameters ) {
+
+		super();
+
+		this.isLineBasicMaterial = true;
+
+		this.type = 'LineBasicMaterial';
+
+		this.color = new Color$1( 0xffffff );
+
+		this.map = null;
+
+		this.linewidth = 1;
+		this.linecap = 'round';
+		this.linejoin = 'round';
+
+		this.fog = true;
+
+		this.setValues( parameters );
+
+	}
+
+
+	copy( source ) {
+
+		super.copy( source );
+
+		this.color.copy( source.color );
+
+		this.map = source.map;
+
+		this.linewidth = source.linewidth;
+		this.linecap = source.linecap;
+		this.linejoin = source.linejoin;
+
+		this.fog = source.fog;
+
+		return this;
+
+	}
+
+}
+
+const _vStart = /*@__PURE__*/ new Vector3();
+const _vEnd = /*@__PURE__*/ new Vector3();
+
+const _inverseMatrix$1 = /*@__PURE__*/ new Matrix4();
+const _ray$1 = /*@__PURE__*/ new Ray();
+const _sphere$1 = /*@__PURE__*/ new Sphere();
+
+const _intersectPointOnRay = /*@__PURE__*/ new Vector3();
+const _intersectPointOnSegment = /*@__PURE__*/ new Vector3();
+
+class Line extends Object3D {
+
+	constructor( geometry = new BufferGeometry(), material = new LineBasicMaterial() ) {
+
+		super();
+
+		this.isLine = true;
+
+		this.type = 'Line';
+
+		this.geometry = geometry;
+		this.material = material;
+
+		this.updateMorphTargets();
+
+	}
+
+	copy( source, recursive ) {
+
+		super.copy( source, recursive );
+
+		this.material = Array.isArray( source.material ) ? source.material.slice() : source.material;
+		this.geometry = source.geometry;
+
+		return this;
+
+	}
+
+	computeLineDistances() {
+
+		const geometry = this.geometry;
+
+		// we assume non-indexed geometry
+
+		if ( geometry.index === null ) {
+
+			const positionAttribute = geometry.attributes.position;
+			const lineDistances = [ 0 ];
+
+			for ( let i = 1, l = positionAttribute.count; i < l; i ++ ) {
+
+				_vStart.fromBufferAttribute( positionAttribute, i - 1 );
+				_vEnd.fromBufferAttribute( positionAttribute, i );
+
+				lineDistances[ i ] = lineDistances[ i - 1 ];
+				lineDistances[ i ] += _vStart.distanceTo( _vEnd );
+
+			}
+
+			geometry.setAttribute( 'lineDistance', new Float32BufferAttribute( lineDistances, 1 ) );
+
+		} else {
+
+			console.warn( 'THREE.Line.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.' );
+
+		}
+
+		return this;
+
+	}
+
+	raycast( raycaster, intersects ) {
+
+		const geometry = this.geometry;
+		const matrixWorld = this.matrixWorld;
+		const threshold = raycaster.params.Line.threshold;
+		const drawRange = geometry.drawRange;
+
+		// Checking boundingSphere distance to ray
+
+		if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere();
+
+		_sphere$1.copy( geometry.boundingSphere );
+		_sphere$1.applyMatrix4( matrixWorld );
+		_sphere$1.radius += threshold;
+
+		if ( raycaster.ray.intersectsSphere( _sphere$1 ) === false ) return;
+
+		//
+
+		_inverseMatrix$1.copy( matrixWorld ).invert();
+		_ray$1.copy( raycaster.ray ).applyMatrix4( _inverseMatrix$1 );
+
+		const localThreshold = threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 );
+		const localThresholdSq = localThreshold * localThreshold;
+
+		const step = this.isLineSegments ? 2 : 1;
+
+		const index = geometry.index;
+		const attributes = geometry.attributes;
+		const positionAttribute = attributes.position;
+
+		if ( index !== null ) {
+
+			const start = Math.max( 0, drawRange.start );
+			const end = Math.min( index.count, ( drawRange.start + drawRange.count ) );
+
+			for ( let i = start, l = end - 1; i < l; i += step ) {
+
+				const a = index.getX( i );
+				const b = index.getX( i + 1 );
+
+				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, a, b );
+
+				if ( intersect ) {
+
+					intersects.push( intersect );
+
+				}
+
+			}
+
+			if ( this.isLineLoop ) {
+
+				const a = index.getX( end - 1 );
+				const b = index.getX( start );
+
+				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, a, b );
+
+				if ( intersect ) {
+
+					intersects.push( intersect );
+
+				}
+
+			}
+
+		} else {
+
+			const start = Math.max( 0, drawRange.start );
+			const end = Math.min( positionAttribute.count, ( drawRange.start + drawRange.count ) );
+
+			for ( let i = start, l = end - 1; i < l; i += step ) {
+
+				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, i, i + 1 );
+
+				if ( intersect ) {
+
+					intersects.push( intersect );
+
+				}
+
+			}
+
+			if ( this.isLineLoop ) {
+
+				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, end - 1, start );
+
+				if ( intersect ) {
+
+					intersects.push( intersect );
+
+				}
+
+			}
+
+		}
+
+	}
+
+	updateMorphTargets() {
+
+		const geometry = this.geometry;
+
+		const morphAttributes = geometry.morphAttributes;
+		const keys = Object.keys( morphAttributes );
+
+		if ( keys.length > 0 ) {
+
+			const morphAttribute = morphAttributes[ keys[ 0 ] ];
+
+			if ( morphAttribute !== undefined ) {
+
+				this.morphTargetInfluences = [];
+				this.morphTargetDictionary = {};
+
+				for ( let m = 0, ml = morphAttribute.length; m < ml; m ++ ) {
+
+					const name = morphAttribute[ m ].name || String( m );
+
+					this.morphTargetInfluences.push( 0 );
+					this.morphTargetDictionary[ name ] = m;
+
+				}
+
+			}
+
+		}
+
+	}
+
+}
+
+function checkIntersection( object, raycaster, ray, thresholdSq, a, b ) {
+
+	const positionAttribute = object.geometry.attributes.position;
+
+	_vStart.fromBufferAttribute( positionAttribute, a );
+	_vEnd.fromBufferAttribute( positionAttribute, b );
+
+	const distSq = ray.distanceSqToSegment( _vStart, _vEnd, _intersectPointOnRay, _intersectPointOnSegment );
+
+	if ( distSq > thresholdSq ) return;
+
+	_intersectPointOnRay.applyMatrix4( object.matrixWorld ); // Move back to world space for distance calculation
+
+	const distance = raycaster.ray.origin.distanceTo( _intersectPointOnRay );
+
+	if ( distance < raycaster.near || distance > raycaster.far ) return;
+
+	return {
+
+		distance: distance,
+		// What do we want? intersection point on the ray or on the segment??
+		// point: raycaster.ray.at( distance ),
+		point: _intersectPointOnSegment.clone().applyMatrix4( object.matrixWorld ),
+		index: a,
+		face: null,
+		faceIndex: null,
+		object: object
+
+	};
+
+}
+
+const _start = /*@__PURE__*/ new Vector3();
+const _end = /*@__PURE__*/ new Vector3();
+
+class LineSegments extends Line {
+
+	constructor( geometry, material ) {
+
+		super( geometry, material );
+
+		this.isLineSegments = true;
+
+		this.type = 'LineSegments';
+
+	}
+
+	computeLineDistances() {
+
+		const geometry = this.geometry;
+
+		// we assume non-indexed geometry
+
+		if ( geometry.index === null ) {
+
+			const positionAttribute = geometry.attributes.position;
+			const lineDistances = [];
+
+			for ( let i = 0, l = positionAttribute.count; i < l; i += 2 ) {
+
+				_start.fromBufferAttribute( positionAttribute, i );
+				_end.fromBufferAttribute( positionAttribute, i + 1 );
+
+				lineDistances[ i ] = ( i === 0 ) ? 0 : lineDistances[ i - 1 ];
+				lineDistances[ i + 1 ] = lineDistances[ i ] + _start.distanceTo( _end );
+
+			}
+
+			geometry.setAttribute( 'lineDistance', new Float32BufferAttribute( lineDistances, 1 ) );
+
+		} else {
+
+			console.warn( 'THREE.LineSegments.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.' );
+
+		}
+
+		return this;
+
+	}
+
+}
+
 class MeshStandardMaterial extends Material {
 
 	constructor( parameters ) {
@@ -30692,123 +31054,34 @@ class LightShadow {
 
 }
 
-const _projScreenMatrix = /*@__PURE__*/ new Matrix4();
-const _lightPositionWorld = /*@__PURE__*/ new Vector3();
-const _lookTarget = /*@__PURE__*/ new Vector3();
-
-class PointLightShadow extends LightShadow {
+class DirectionalLightShadow extends LightShadow {
 
 	constructor() {
 
-		super( new PerspectiveCamera( 90, 1, 0.5, 500 ) );
+		super( new OrthographicCamera( - 5, 5, 5, - 5, 0.5, 500 ) );
 
-		this.isPointLightShadow = true;
-
-		this._frameExtents = new Vector2( 4, 2 );
-
-		this._viewportCount = 6;
-
-		this._viewports = [
-			// These viewports map a cube-map onto a 2D texture with the
-			// following orientation:
-			//
-			//  xzXZ
-			//   y Y
-			//
-			// X - Positive x direction
-			// x - Negative x direction
-			// Y - Positive y direction
-			// y - Negative y direction
-			// Z - Positive z direction
-			// z - Negative z direction
-
-			// positive X
-			new Vector4( 2, 1, 1, 1 ),
-			// negative X
-			new Vector4( 0, 1, 1, 1 ),
-			// positive Z
-			new Vector4( 3, 1, 1, 1 ),
-			// negative Z
-			new Vector4( 1, 1, 1, 1 ),
-			// positive Y
-			new Vector4( 3, 0, 1, 1 ),
-			// negative Y
-			new Vector4( 1, 0, 1, 1 )
-		];
-
-		this._cubeDirections = [
-			new Vector3( 1, 0, 0 ), new Vector3( - 1, 0, 0 ), new Vector3( 0, 0, 1 ),
-			new Vector3( 0, 0, - 1 ), new Vector3( 0, 1, 0 ), new Vector3( 0, - 1, 0 )
-		];
-
-		this._cubeUps = [
-			new Vector3( 0, 1, 0 ), new Vector3( 0, 1, 0 ), new Vector3( 0, 1, 0 ),
-			new Vector3( 0, 1, 0 ), new Vector3( 0, 0, 1 ),	new Vector3( 0, 0, - 1 )
-		];
-
-	}
-
-	updateMatrices( light, viewportIndex = 0 ) {
-
-		const camera = this.camera;
-		const shadowMatrix = this.matrix;
-
-		const far = light.distance || camera.far;
-
-		if ( far !== camera.far ) {
-
-			camera.far = far;
-			camera.updateProjectionMatrix();
-
-		}
-
-		_lightPositionWorld.setFromMatrixPosition( light.matrixWorld );
-		camera.position.copy( _lightPositionWorld );
-
-		_lookTarget.copy( camera.position );
-		_lookTarget.add( this._cubeDirections[ viewportIndex ] );
-		camera.up.copy( this._cubeUps[ viewportIndex ] );
-		camera.lookAt( _lookTarget );
-		camera.updateMatrixWorld();
-
-		shadowMatrix.makeTranslation( - _lightPositionWorld.x, - _lightPositionWorld.y, - _lightPositionWorld.z );
-
-		_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
-		this._frustum.setFromProjectionMatrix( _projScreenMatrix );
+		this.isDirectionalLightShadow = true;
 
 	}
 
 }
 
-class PointLight extends Light {
+class DirectionalLight extends Light {
 
-	constructor( color, intensity, distance = 0, decay = 2 ) {
+	constructor( color, intensity ) {
 
 		super( color, intensity );
 
-		this.isPointLight = true;
+		this.isDirectionalLight = true;
 
-		this.type = 'PointLight';
+		this.type = 'DirectionalLight';
 
-		this.distance = distance;
-		this.decay = decay;
+		this.position.copy( Object3D.DEFAULT_UP );
+		this.updateMatrix();
 
-		this.shadow = new PointLightShadow();
+		this.target = new Object3D();
 
-	}
-
-	get power() {
-
-		// compute the light's luminous power (in lumens) from its intensity (in candela)
-		// for an isotropic light source, luminous power (lm) = 4 π luminous intensity (cd)
-		return this.intensity * 4 * Math.PI;
-
-	}
-
-	set power( power ) {
-
-		// set the light's intensity (in candela) from the desired luminous power (in lumens)
-		this.intensity = power / ( 4 * Math.PI );
+		this.shadow = new DirectionalLightShadow();
 
 	}
 
@@ -30818,13 +31091,11 @@ class PointLight extends Light {
 
 	}
 
-	copy( source, recursive ) {
+	copy( source ) {
 
-		super.copy( source, recursive );
+		super.copy( source );
 
-		this.distance = source.distance;
-		this.decay = source.decay;
-
+		this.target = source.target.clone();
 		this.shadow = source.shadow.clone();
 
 		return this;
@@ -30983,6 +31254,66 @@ class Spherical {
 	clone() {
 
 		return new this.constructor().copy( this );
+
+	}
+
+}
+
+class AxesHelper extends LineSegments {
+
+	constructor( size = 1 ) {
+
+		const vertices = [
+			0, 0, 0,	size, 0, 0,
+			0, 0, 0,	0, size, 0,
+			0, 0, 0,	0, 0, size
+		];
+
+		const colors = [
+			1, 0, 0,	1, 0.6, 0,
+			0, 1, 0,	0.6, 1, 0,
+			0, 0, 1,	0, 0.6, 1
+		];
+
+		const geometry = new BufferGeometry();
+		geometry.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
+		geometry.setAttribute( 'color', new Float32BufferAttribute( colors, 3 ) );
+
+		const material = new LineBasicMaterial( { vertexColors: true, toneMapped: false } );
+
+		super( geometry, material );
+
+		this.type = 'AxesHelper';
+
+	}
+
+	setColors( xAxisColor, yAxisColor, zAxisColor ) {
+
+		const color = new Color$1();
+		const array = this.geometry.attributes.color.array;
+
+		color.set( xAxisColor );
+		color.toArray( array, 0 );
+		color.toArray( array, 3 );
+
+		color.set( yAxisColor );
+		color.toArray( array, 6 );
+		color.toArray( array, 9 );
+
+		color.set( zAxisColor );
+		color.toArray( array, 12 );
+		color.toArray( array, 15 );
+
+		this.geometry.attributes.color.needsUpdate = true;
+
+		return this;
+
+	}
+
+	dispose() {
+
+		this.geometry.dispose();
+		this.material.dispose();
 
 	}
 
@@ -33143,7 +33474,7 @@ class RenderPass extends Pass {
 
 var depthVert = "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
 
-var depthFrag = "#include <packing>\n#define MAX_STEPS 100\n#define MAX_DIST 10.0\n#define SURF_DIST 0.0001\n#define iTime time\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float tri(in float x){return abs(fract(x)-.5);}vec3 tri3(in vec3 p){return vec3(tri(p.z+tri(p.y)),tri(p.z+tri(p.x)),tri(p.y+tri(p.x)));}float Noise3d(in vec3 p){float z=1.4;float rz=0.;vec3 bp=p;for(float i=0.;i<=2.;i++){vec3 dg=tri3(bp);p+=(dg);bp*=2.;z*=1.5;p*=1.3;rz+=(tri(p.z+tri(p.x+tri(p.y))))/z;bp+=0.14;}return rz;}float densityFunction(vec3 point){return 0.1+Noise3d(point+vec3(time))*smoothstep(3.0,0.0,length(point));}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dO=0.0;float dens=0.0;float step=0.2;float density=0.2;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth||dens>0.9){break;}}return dens;}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=texture2D(colorTexture,vUv).rgb+vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
+var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 100\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float tri(in float x){return abs(fract(x)-.5);}vec3 tri3(in vec3 p){return vec3(tri(p.z+tri(p.y)),tri(p.z+tri(p.x)),tri(p.y+tri(p.x)));}float Noise3d(in vec3 p){float z=1.4;float rz=0.;vec3 bp=p;for(float i=0.;i<=2.;i++){vec3 dg=tri3(bp);p+=(dg);bp*=2.;z*=1.5;p*=1.3;rz+=(tri(p.z+tri(p.x+tri(p.y))))/z;bp+=0.14;}return rz;}float densityFunction(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);float shdwo=getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);return Noise3d(point*0.4+vec3(time/4.0))*smoothstep(4.0,0.0,length(point))*shdwo;}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dO=0.0;float dens=0.0;float step=min(0.05,depth/float(MAX_STEPS));float density=0.4;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth||dens>0.9){break;}}return dens;}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=texture2D(colorTexture,vUv).rgb+vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
 
 let startTime = Date.now();
 const DepthShader = {
@@ -33151,6 +33482,7 @@ const DepthShader = {
     defines: {
         DEPTH_PACKING: 1,
         PERSPECTIVE_CAMERA: 1,
+        USE_SHADOWMAP: 1,
     },
     uniforms: {
         colorTexture: { value: null },
@@ -33162,16 +33494,20 @@ const DepthShader = {
         cameraProjectionMatrixInverse: { value: null },
         cameraPosition: { value: null },
         time: { value: 0 },
+        // light
+        shadowMap: { value: null },
+        directionalShadowMatrix: { value: null },
     },
     vertexShader: depthVert,
     fragmentShader: depthFrag,
 };
 class IShatMyselfPass extends Pass {
-    constructor(scene, camera, resolution) {
+    constructor(scene, camera, resolution, light) {
         super();
         this.scene = scene;
         this.camera = camera;
         this.resolution = resolution;
+        this.light = light;
         this.depthBuffer = new WebGLRenderTarget(this.resolution.x, this.resolution.y);
         this.textureMatrix = new Matrix4();
         this.downSampling = 4;
@@ -33217,6 +33553,8 @@ class IShatMyselfPass extends Pass {
             this.material.uniforms['textureMatrix'].value = this.textureMatrix;
             this.material.uniforms['cameraPosition'].value = this.camera.position;
             this.material.uniforms['time'].value = (Date.now() - startTime) / 10000;
+            this.material.uniforms['shadowMap'].value = this.light.shadow.map.texture;
+            this.material.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix;
             renderer.setRenderTarget(null);
             renderer.clear();
             this.fsQuad.render(renderer);
@@ -35718,13 +36056,21 @@ var GUI$1 = GUI;
 
 let renderer, scene, camera, controls, light, composer;
 function animate() {
-    requestAnimationFrame(animate);
-    let time = performance.now() * 0.002;
-    light.position.x = Math.sin(time * 0.8) * 1;
-    light.position.y = 2;
-    light.position.z = Math.cos(time * 0.8) * 1;
-    composer.render();
-    controls.update();
+    return __awaiter(this, void 0, void 0, function* () {
+        // await new Promise((resolve) => setTimeout(resolve, 200))
+        requestAnimationFrame(animate);
+        let time = performance.now() * 0.002;
+        light.position.x = Math.sin(time * 0.1) * 2.0;
+        light.position.y = 2.0;
+        light.position.z = Math.cos(time * 0.1) * 2.0;
+        composer.render();
+        controls.update();
+        const v = new Vector3(2.0, 0.0, 0.0);
+        const mat = light.shadow.matrix;
+        v.applyMatrix4(mat);
+        // console.log('v', v)
+        console.log(light);
+    });
 }
 function init() {
     renderer = new WebGLRenderer();
@@ -35732,25 +36078,25 @@ function init() {
     renderer.shadowMap.type = PCFShadowMap;
     scene = new Scene();
     camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    light = new PointLight(0xffc9b8, 2.0, 20);
-    light.position.set(0, 2, 0);
-    light.castShadow = true;
-    scene.add(light);
     addCube(scene);
     addPlane(scene);
-    camera.position.set(0, 1, 4);
+    addLight(scene);
+    camera.position.set(-3, 1, 3);
     controls = new OrbitControls(camera, renderer.domElement);
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     // composer.addPass(new ShaderPass(GammaCorrectionShader))
-    composer.addPass(new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight)));
+    composer.addPass(new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light));
+    const ah = new AxesHelper();
+    scene.add(ah);
 }
 function addCube(scene) {
-    const cube = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ color: 0xffffff }));
+    const cube = new Mesh(new BoxGeometry(1, 1.0, 1), new MeshStandardMaterial({ color: 0xffffff }));
     cube.castShadow = true;
     cube.receiveShadow = true;
+    cube.position.set(0.0, 0.5, 0.0);
     scene.add(cube);
 }
 function addPlane(scene) {
@@ -35759,6 +36105,22 @@ function addPlane(scene) {
     plane.position.set(0, -0.5, 0);
     plane.receiveShadow = true;
     scene.add(plane);
+}
+function addLight(scene) {
+    light = new DirectionalLight(0xffc9b8, 1.0);
+    light.position.set(0, 2, 0);
+    light.castShadow = true;
+    light.shadow.camera.near = 0.1;
+    light.shadow.camera.far = 6.0;
+    light.shadow.camera.top = 2.0;
+    light.shadow.camera.bottom = -2.0;
+    light.shadow.camera.left = -2.0;
+    light.shadow.camera.right = 2.0;
+    scene.add(light);
+    // const sh = new DirectionalLightHelper(light)
+    // scene.add(sh)
+    // const sh2 = new CameraHelper(light.shadow.camera)
+    // scene.add(sh2)
 }
 window.addEventListener('load', () => {
     init();
