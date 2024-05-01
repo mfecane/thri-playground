@@ -30410,336 +30410,6 @@ class Scene extends Object3D {
 
 }
 
-class LineBasicMaterial extends Material {
-
-	constructor( parameters ) {
-
-		super();
-
-		this.isLineBasicMaterial = true;
-
-		this.type = 'LineBasicMaterial';
-
-		this.color = new Color$1( 0xffffff );
-
-		this.map = null;
-
-		this.linewidth = 1;
-		this.linecap = 'round';
-		this.linejoin = 'round';
-
-		this.fog = true;
-
-		this.setValues( parameters );
-
-	}
-
-
-	copy( source ) {
-
-		super.copy( source );
-
-		this.color.copy( source.color );
-
-		this.map = source.map;
-
-		this.linewidth = source.linewidth;
-		this.linecap = source.linecap;
-		this.linejoin = source.linejoin;
-
-		this.fog = source.fog;
-
-		return this;
-
-	}
-
-}
-
-const _vStart = /*@__PURE__*/ new Vector3();
-const _vEnd = /*@__PURE__*/ new Vector3();
-
-const _inverseMatrix$1 = /*@__PURE__*/ new Matrix4();
-const _ray$1 = /*@__PURE__*/ new Ray();
-const _sphere$1 = /*@__PURE__*/ new Sphere();
-
-const _intersectPointOnRay = /*@__PURE__*/ new Vector3();
-const _intersectPointOnSegment = /*@__PURE__*/ new Vector3();
-
-class Line extends Object3D {
-
-	constructor( geometry = new BufferGeometry(), material = new LineBasicMaterial() ) {
-
-		super();
-
-		this.isLine = true;
-
-		this.type = 'Line';
-
-		this.geometry = geometry;
-		this.material = material;
-
-		this.updateMorphTargets();
-
-	}
-
-	copy( source, recursive ) {
-
-		super.copy( source, recursive );
-
-		this.material = Array.isArray( source.material ) ? source.material.slice() : source.material;
-		this.geometry = source.geometry;
-
-		return this;
-
-	}
-
-	computeLineDistances() {
-
-		const geometry = this.geometry;
-
-		// we assume non-indexed geometry
-
-		if ( geometry.index === null ) {
-
-			const positionAttribute = geometry.attributes.position;
-			const lineDistances = [ 0 ];
-
-			for ( let i = 1, l = positionAttribute.count; i < l; i ++ ) {
-
-				_vStart.fromBufferAttribute( positionAttribute, i - 1 );
-				_vEnd.fromBufferAttribute( positionAttribute, i );
-
-				lineDistances[ i ] = lineDistances[ i - 1 ];
-				lineDistances[ i ] += _vStart.distanceTo( _vEnd );
-
-			}
-
-			geometry.setAttribute( 'lineDistance', new Float32BufferAttribute( lineDistances, 1 ) );
-
-		} else {
-
-			console.warn( 'THREE.Line.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.' );
-
-		}
-
-		return this;
-
-	}
-
-	raycast( raycaster, intersects ) {
-
-		const geometry = this.geometry;
-		const matrixWorld = this.matrixWorld;
-		const threshold = raycaster.params.Line.threshold;
-		const drawRange = geometry.drawRange;
-
-		// Checking boundingSphere distance to ray
-
-		if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere();
-
-		_sphere$1.copy( geometry.boundingSphere );
-		_sphere$1.applyMatrix4( matrixWorld );
-		_sphere$1.radius += threshold;
-
-		if ( raycaster.ray.intersectsSphere( _sphere$1 ) === false ) return;
-
-		//
-
-		_inverseMatrix$1.copy( matrixWorld ).invert();
-		_ray$1.copy( raycaster.ray ).applyMatrix4( _inverseMatrix$1 );
-
-		const localThreshold = threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 );
-		const localThresholdSq = localThreshold * localThreshold;
-
-		const step = this.isLineSegments ? 2 : 1;
-
-		const index = geometry.index;
-		const attributes = geometry.attributes;
-		const positionAttribute = attributes.position;
-
-		if ( index !== null ) {
-
-			const start = Math.max( 0, drawRange.start );
-			const end = Math.min( index.count, ( drawRange.start + drawRange.count ) );
-
-			for ( let i = start, l = end - 1; i < l; i += step ) {
-
-				const a = index.getX( i );
-				const b = index.getX( i + 1 );
-
-				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, a, b );
-
-				if ( intersect ) {
-
-					intersects.push( intersect );
-
-				}
-
-			}
-
-			if ( this.isLineLoop ) {
-
-				const a = index.getX( end - 1 );
-				const b = index.getX( start );
-
-				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, a, b );
-
-				if ( intersect ) {
-
-					intersects.push( intersect );
-
-				}
-
-			}
-
-		} else {
-
-			const start = Math.max( 0, drawRange.start );
-			const end = Math.min( positionAttribute.count, ( drawRange.start + drawRange.count ) );
-
-			for ( let i = start, l = end - 1; i < l; i += step ) {
-
-				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, i, i + 1 );
-
-				if ( intersect ) {
-
-					intersects.push( intersect );
-
-				}
-
-			}
-
-			if ( this.isLineLoop ) {
-
-				const intersect = checkIntersection( this, raycaster, _ray$1, localThresholdSq, end - 1, start );
-
-				if ( intersect ) {
-
-					intersects.push( intersect );
-
-				}
-
-			}
-
-		}
-
-	}
-
-	updateMorphTargets() {
-
-		const geometry = this.geometry;
-
-		const morphAttributes = geometry.morphAttributes;
-		const keys = Object.keys( morphAttributes );
-
-		if ( keys.length > 0 ) {
-
-			const morphAttribute = morphAttributes[ keys[ 0 ] ];
-
-			if ( morphAttribute !== undefined ) {
-
-				this.morphTargetInfluences = [];
-				this.morphTargetDictionary = {};
-
-				for ( let m = 0, ml = morphAttribute.length; m < ml; m ++ ) {
-
-					const name = morphAttribute[ m ].name || String( m );
-
-					this.morphTargetInfluences.push( 0 );
-					this.morphTargetDictionary[ name ] = m;
-
-				}
-
-			}
-
-		}
-
-	}
-
-}
-
-function checkIntersection( object, raycaster, ray, thresholdSq, a, b ) {
-
-	const positionAttribute = object.geometry.attributes.position;
-
-	_vStart.fromBufferAttribute( positionAttribute, a );
-	_vEnd.fromBufferAttribute( positionAttribute, b );
-
-	const distSq = ray.distanceSqToSegment( _vStart, _vEnd, _intersectPointOnRay, _intersectPointOnSegment );
-
-	if ( distSq > thresholdSq ) return;
-
-	_intersectPointOnRay.applyMatrix4( object.matrixWorld ); // Move back to world space for distance calculation
-
-	const distance = raycaster.ray.origin.distanceTo( _intersectPointOnRay );
-
-	if ( distance < raycaster.near || distance > raycaster.far ) return;
-
-	return {
-
-		distance: distance,
-		// What do we want? intersection point on the ray or on the segment??
-		// point: raycaster.ray.at( distance ),
-		point: _intersectPointOnSegment.clone().applyMatrix4( object.matrixWorld ),
-		index: a,
-		face: null,
-		faceIndex: null,
-		object: object
-
-	};
-
-}
-
-const _start = /*@__PURE__*/ new Vector3();
-const _end = /*@__PURE__*/ new Vector3();
-
-class LineSegments extends Line {
-
-	constructor( geometry, material ) {
-
-		super( geometry, material );
-
-		this.isLineSegments = true;
-
-		this.type = 'LineSegments';
-
-	}
-
-	computeLineDistances() {
-
-		const geometry = this.geometry;
-
-		// we assume non-indexed geometry
-
-		if ( geometry.index === null ) {
-
-			const positionAttribute = geometry.attributes.position;
-			const lineDistances = [];
-
-			for ( let i = 0, l = positionAttribute.count; i < l; i += 2 ) {
-
-				_start.fromBufferAttribute( positionAttribute, i );
-				_end.fromBufferAttribute( positionAttribute, i + 1 );
-
-				lineDistances[ i ] = ( i === 0 ) ? 0 : lineDistances[ i - 1 ];
-				lineDistances[ i + 1 ] = lineDistances[ i ] + _start.distanceTo( _end );
-
-			}
-
-			geometry.setAttribute( 'lineDistance', new Float32BufferAttribute( lineDistances, 1 ) );
-
-		} else {
-
-			console.warn( 'THREE.LineSegments.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.' );
-
-		}
-
-		return this;
-
-	}
-
-}
-
 class MeshStandardMaterial extends Material {
 
 	constructor( parameters ) {
@@ -31254,66 +30924,6 @@ class Spherical {
 	clone() {
 
 		return new this.constructor().copy( this );
-
-	}
-
-}
-
-class AxesHelper extends LineSegments {
-
-	constructor( size = 1 ) {
-
-		const vertices = [
-			0, 0, 0,	size, 0, 0,
-			0, 0, 0,	0, size, 0,
-			0, 0, 0,	0, 0, size
-		];
-
-		const colors = [
-			1, 0, 0,	1, 0.6, 0,
-			0, 1, 0,	0.6, 1, 0,
-			0, 0, 1,	0, 0.6, 1
-		];
-
-		const geometry = new BufferGeometry();
-		geometry.setAttribute( 'position', new Float32BufferAttribute( vertices, 3 ) );
-		geometry.setAttribute( 'color', new Float32BufferAttribute( colors, 3 ) );
-
-		const material = new LineBasicMaterial( { vertexColors: true, toneMapped: false } );
-
-		super( geometry, material );
-
-		this.type = 'AxesHelper';
-
-	}
-
-	setColors( xAxisColor, yAxisColor, zAxisColor ) {
-
-		const color = new Color$1();
-		const array = this.geometry.attributes.color.array;
-
-		color.set( xAxisColor );
-		color.toArray( array, 0 );
-		color.toArray( array, 3 );
-
-		color.set( yAxisColor );
-		color.toArray( array, 6 );
-		color.toArray( array, 9 );
-
-		color.set( zAxisColor );
-		color.toArray( array, 12 );
-		color.toArray( array, 15 );
-
-		this.geometry.attributes.color.needsUpdate = true;
-
-		return this;
-
-	}
-
-	dispose() {
-
-		this.geometry.dispose();
-		this.material.dispose();
 
 	}
 
@@ -33474,10 +33084,10 @@ class RenderPass extends Pass {
 
 var depthVert = "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
 
-var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 100\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float tri(in float x){return abs(fract(x)-.5);}vec3 tri3(in vec3 p){return vec3(tri(p.z+tri(p.y)),tri(p.z+tri(p.x)),tri(p.y+tri(p.x)));}float Noise3d(in vec3 p){float z=1.4;float rz=0.;vec3 bp=p;for(float i=0.;i<=2.;i++){vec3 dg=tri3(bp);p+=(dg);bp*=2.;z*=1.5;p*=1.3;rz+=(tri(p.z+tri(p.x+tri(p.y))))/z;bp+=0.14;}return rz;}float densityFunction(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);float shdwo=getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);return Noise3d(point*0.4+vec3(time/4.0))*smoothstep(4.0,0.0,length(point))*shdwo;}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dO=0.0;float dens=0.0;float step=min(0.05,depth/float(MAX_STEPS));float density=0.4;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth||dens>0.9){break;}}return dens;}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=texture2D(colorTexture,vUv).rgb+vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
+var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 50\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float tri(in float x){return abs(fract(x)-.5);}vec3 tri3(in vec3 p){return vec3(tri(p.z+tri(p.y)),tri(p.z+tri(p.x)),tri(p.y+tri(p.x)));}float rand(vec2 n){return fract(sin(dot(n,vec2(12.9898,4.1414)))*43758.5453);}float Noise3d(in vec3 p){float z=1.4;float rz=0.;vec3 bp=p;for(float i=0.;i<=2.;i++){vec3 dg=tri3(bp);p+=(dg);bp*=2.;z*=1.5;p*=1.3;rz+=(tri(p.z+tri(p.x+tri(p.y))))/z;bp+=0.14;}return rz;}float densityFunction(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);float shdwo=getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);if(point.y<-0.5){return 0.0;}vec3 pp=point;return(Noise3d(pp*0.4+vec3(time/4.0))+0.2*smoothstep(1.0,0.0,point.y))*shdwo*smoothstep(3.0,0.0,length(point));}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dO=0.0;float dens=0.0;float step=min(0.2,depth/float(MAX_STEPS));step+=rand(vUv)*0.05;float density=0.4;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth+0.1||dens>0.9){break;}}return dens;}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
 
 let startTime = Date.now();
-const DepthShader = {
+const SmokeShader = {
     name: 'DepthShader',
     defines: {
         DEPTH_PACKING: 1,
@@ -33501,6 +33111,30 @@ const DepthShader = {
     vertexShader: depthVert,
     fragmentShader: depthFrag,
 };
+const OVERLAY_MATERIAL = new ShaderMaterial({
+    uniforms: {
+        smokeBuffer: { value: null },
+        readBuffer: { value: null },
+    },
+    vertexShader: `varying vec2 vUv;
+
+		void main() {
+			vUv = uv;
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+		}`,
+    fragmentShader: `varying vec2 vUv;
+
+		uniform sampler2D smokeBuffer;
+		uniform sampler2D readBuffer;
+
+		void main() {
+			gl_FragColor = vec4(texture2D(readBuffer, vUv).rgb + texture2D(smokeBuffer, vUv).rgb, 1.0);
+		}`,
+    // blending: AdditiveBlending,
+    depthTest: false,
+    depthWrite: false,
+    transparent: true,
+});
 class IShatMyselfPass extends Pass {
     constructor(scene, camera, resolution, light) {
         super();
@@ -33508,53 +33142,55 @@ class IShatMyselfPass extends Pass {
         this.camera = camera;
         this.resolution = resolution;
         this.light = light;
-        this.depthBuffer = new WebGLRenderTarget(this.resolution.x, this.resolution.y);
-        this.textureMatrix = new Matrix4();
-        this.downSampling = 4;
-        this.material = new ShaderMaterial({
-            defines: Object.assign({}, DepthShader.defines),
-            uniforms: DepthShader.uniforms,
-            vertexShader: DepthShader.vertexShader,
-            fragmentShader: DepthShader.fragmentShader,
-            blending: NoBlending,
-            depthTest: false,
-            depthWrite: false,
-        });
-        this.fsQuad = new FullScreenQuad(this.material);
+        this.downSampling = 2;
+        this.fsQuad = new FullScreenQuad();
         this.depthMaterial = new MeshDepthMaterial();
         this.depthMaterial.side = DoubleSide;
         this.depthMaterial.depthPacking = RGBADepthPacking;
         this.depthMaterial.blending = NoBlending;
+        this.smokeMaterial = new ShaderMaterial({
+            defines: Object.assign({}, SmokeShader.defines),
+            uniforms: SmokeShader.uniforms,
+            vertexShader: SmokeShader.vertexShader,
+            fragmentShader: SmokeShader.fragmentShader,
+            blending: NoBlending,
+            depthTest: false,
+            depthWrite: false,
+        });
+        this.smokeMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far);
+        this.smokeMaterial.uniforms.resolution.value = new Vector2(resolution.x / this.downSampling, resolution.y / this.downSampling);
+        this.smokeMaterial.uniforms.cameraWorldMatrix.value = this.camera.matrixWorld;
+        this.smokeMaterial.uniforms.cameraProjectionMatrixInverse.value = this.camera.projectionMatrixInverse.clone();
         this.depthBuffer = new WebGLRenderTarget(this.resolution.x / this.downSampling, this.resolution.y / this.downSampling);
         this.depthBuffer.texture.name = 'Depth';
         this.depthBuffer.texture.generateMipmaps = false;
-        this.material.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far);
-        this.material.uniforms.resolution.value = new Vector2(resolution.x, resolution.y);
-        this.material.uniforms.cameraWorldMatrix.value = this.camera.matrixWorld;
-        this.material.uniforms.cameraProjectionMatrixInverse.value = this.camera.projectionMatrixInverse.clone();
-    }
-    updateTextureMatrix() {
-        // prettier-ignore
-        this.textureMatrix.set(0.5, 0.0, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0);
-        this.textureMatrix.multiply(this.camera.projectionMatrix);
-        this.textureMatrix.multiply(this.camera.matrixWorldInverse);
+        this.someBuffer = new WebGLRenderTarget(this.resolution.x / this.downSampling, this.resolution.y / this.downSampling);
+        this.someBuffer.texture.name = 'Some buffer';
+        this.someBuffer.texture.generateMipmaps = false;
     }
     render(renderer, writeBuffer, readBuffer, deltaTime, maskActive) {
-        // render depth texture
-        this.scene.overrideMaterial = this.depthMaterial;
+        //#region render depth
         renderer.setRenderTarget(this.depthBuffer);
+        this.scene.overrideMaterial = this.depthMaterial;
         renderer.render(this.scene, this.camera);
         this.scene.overrideMaterial = null;
+        //#endregion render depth
+        // I think i can do all of this in one step with 2 draw calls, do i?
+        //#region render smoke
+        this.smokeMaterial.uniforms['depthTexture'].value = this.depthBuffer.texture;
+        this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position;
+        this.smokeMaterial.uniforms['time'].value = (Date.now() - startTime) / 10000;
+        this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map.texture;
+        this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix;
+        this.fsQuad.material = this.smokeMaterial;
+        renderer.setRenderTarget(this.someBuffer);
+        renderer.clear();
+        this.fsQuad.render(renderer);
+        //#endregion render smoke
         if (this.renderToScreen) {
-            this.updateTextureMatrix();
-            // TODO add shadow map
-            this.material.uniforms['colorTexture'].value = readBuffer.texture;
-            this.material.uniforms['depthTexture'].value = this.depthBuffer.texture;
-            this.material.uniforms['textureMatrix'].value = this.textureMatrix;
-            this.material.uniforms['cameraPosition'].value = this.camera.position;
-            this.material.uniforms['time'].value = (Date.now() - startTime) / 10000;
-            this.material.uniforms['shadowMap'].value = this.light.shadow.map.texture;
-            this.material.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix;
+            this.fsQuad.material = OVERLAY_MATERIAL;
+            OVERLAY_MATERIAL.uniforms.readBuffer.value = readBuffer.texture;
+            OVERLAY_MATERIAL.uniforms.smokeBuffer.value = this.someBuffer.texture;
             renderer.setRenderTarget(null);
             renderer.clear();
             this.fsQuad.render(renderer);
@@ -36065,11 +35701,6 @@ function animate() {
         light.position.z = Math.cos(time * 0.1) * 2.0;
         composer.render();
         controls.update();
-        const v = new Vector3(2.0, 0.0, 0.0);
-        const mat = light.shadow.matrix;
-        v.applyMatrix4(mat);
-        // console.log('v', v)
-        console.log(light);
     });
 }
 function init() {
@@ -36089,8 +35720,8 @@ function init() {
     composer.addPass(new RenderPass(scene, camera));
     // composer.addPass(new ShaderPass(GammaCorrectionShader))
     composer.addPass(new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light));
-    const ah = new AxesHelper();
-    scene.add(ah);
+    // const ah = new AxesHelper()
+    // scene.add(ah)
 }
 function addCube(scene) {
     const cube = new Mesh(new BoxGeometry(1, 1.0, 1), new MeshStandardMaterial({ color: 0xffffff }));
