@@ -1,16 +1,18 @@
 {
 	"name": "thri-playground",
-	"version": "1.0.0",
-	"description": "",
-	"main": "index.js",
+	"version": "0.0.0.0.0.0.0.0.0.1",
+	"description": "Random three.js shenanigans",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/mfecane/thri-playground"
+	},
 	"scripts": {
 		"build": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
 		"watch": "rollup -w --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
 		"deploy": "gh-pages -d public"
 	},
-	"keywords": [],
-	"author": "",
-	"license": "ISC",
+	"author": "Mfecane <aaliapkin@gmail.com>",
+	"license": "MIT",
 	"devDependencies": {
 		"@rollup/plugin-node-resolve": "^15.2.3",
 		"@rollup/plugin-typescript": "^11.1.6",

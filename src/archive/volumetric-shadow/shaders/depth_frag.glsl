@@ -88,7 +88,7 @@ float volumetricMarch(vec3 ro, vec3 rd, float depth) {
 	float dens = 0.0;
 	float step = min(0.2, depth / float(MAX_STEPS)); // in meters
 	step += rand(vUv) * 0.05;
-	float density = 0.2;
+	float density = 0.4;
 
 	for(int i = 0; i < MAX_STEPS; i++) {
 		vec3 p = ro + rd * dO;

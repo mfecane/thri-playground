@@ -13,6 +13,7 @@ const folders: Item[] = [
 	{ id: 'raymarch-and-geo', folder: 'archive' },
 	{ id: 'noise-fog', folder: 'archive' },
 	{ id: 'fog', folder: null },
+	{ id: 'volumetric-shadow', folder: 'archive' },
 ]
 
 const DEFAULT = {
