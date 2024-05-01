@@ -1,7 +1,7 @@
 #include <packing>
 
 #define MAX_STEPS 100
-#define MAX_DIST 5.0
+#define MAX_DIST 7.0
 #define SURF_DIST 0.0001
 
 uniform sampler2D depthTexture;
@@ -38,6 +38,7 @@ float rayMarch(vec3 ro, vec3 rd, float depth) {
   return dO;
 }
 
+
 vec3 GetNormal(vec3 p) {
   float d = sceneDistance(p);
   vec2 e = vec2(0.001, 0.0);
@@ -49,6 +50,7 @@ vec3 GetNormal(vec3 p) {
 
   return normalize(n);
 }
+
 
 void main() {
     float depth = unpackRGBAToDepth(texture2DProj(depthTexture, projTexCoord));

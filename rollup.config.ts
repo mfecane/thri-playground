@@ -2,6 +2,19 @@ import typescript from '@rollup/plugin-typescript'
 import resolve from '@rollup/plugin-node-resolve'
 import glsl from 'rollup-plugin-glsl'
 
+interface Item {
+	id: string
+	folder: string | null
+}
+
+const folders: Item[] = [
+	{ id: 'depthpass', folder: 'archive' },
+	{ id: 'raymarch-test', folder: 'archive' },
+	{ id: 'raymarch-and-geo', folder: 'archive' },
+	{ id: 'noise-fog', folder: 'archive' },
+	{ id: 'fog', folder: null },
+]
+
 const DEFAULT = {
 	plugins: [
 		resolve(),
@@ -13,10 +26,20 @@ const DEFAULT = {
 	],
 }
 
-export default [
-	{ ...DEFAULT, input: 'src/depthpass/index.ts', output: { file: 'public/build/bundle_depthpass.js' } },
-	{ ...DEFAULT, input: 'src/raymarch-test/index.ts', output: { file: 'public/build/bundle_raymarch-test.js' } },
+function buildItem(it: Item) {
+	const input = it.folder ? `src/${it.folder}/${it.id}/index.ts` : `src/${it.id}/index.ts`
+	const output = it.folder ? `public/build/${it.folder}/${it.id}.js` : `public/build/${it.id}.js`
+	console.log({
+		...DEFAULT,
+		input,
+		output,
+	})
 
-	{ ...DEFAULT, input: 'src/01/index.ts', output: { file: 'public/build/bundle1.js', format: 'cjs' } },
-	{ ...DEFAULT, input: 'src/02/index.ts', output: { file: 'public/build/bundle2.js', format: 'es' } },
-]
+	return {
+		...DEFAULT,
+		input,
+		output: { file: output },
+	}
+}
+
+export default [...folders.map((it: Item) => buildItem(it))]

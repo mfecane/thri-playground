@@ -12,66 +12,36 @@ import {
 	Matrix4,
 	PerspectiveCamera,
 } from 'three'
-import { Pass } from 'three/examples/jsm/postprocessing/Pass.js'
+import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js'
+
+import depthVert from './shaders/depth_vert.glsl'
+import depthFrag from './shaders/depth_frag.glsl'
+
+let startTime = Date.now()
 
 const DepthShader = {
 	name: 'DepthShader',
 
+	defines: {
+		DEPTH_PACKING: 1,
+		PERSPECTIVE_CAMERA: 1,
+	},
+
 	uniforms: {
+		colorTexture: { value: null },
 		depthTexture: { value: null },
 		cameraNearFar: { value: new Vector2(0.5, 0.5) },
 		textureMatrix: { value: null },
+		resolution: { value: null },
+		cameraWorldMatrix: { value: null },
+		cameraProjectionMatrixInverse: { value: null },
+		cameraPosition: { value: null },
+		time: { value: 0 },
 	},
 
-	vertexShader: /* glsl */ `
-        #include <morphtarget_pars_vertex>
-        #include <skinning_pars_vertex>
+	vertexShader: depthVert,
 
-        varying vec4 projTexCoord;
-        varying vec4 vPosition;
-        uniform mat4 textureMatrix;
-
-        void main() {
-
-            #include <skinbase_vertex>
-            #include <begin_vertex>
-            #include <morphtarget_vertex>
-            #include <skinning_vertex>
-            #include <project_vertex>
-
-            vPosition = mvPosition;
-
-            vec4 worldPosition = vec4( transformed, 1.0 );
-
-            #ifdef USE_INSTANCING
-
-                worldPosition = instanceMatrix * worldPosition;
-
-            #endif
-            
-            worldPosition = modelMatrix * worldPosition;
-
-            projTexCoord = textureMatrix * worldPosition;
-
-        }
-    `,
-
-	fragmentShader: /* glsl */ `
-        #include <packing>
-        varying vec4 vPosition;
-        varying vec4 projTexCoord;
-        uniform sampler2D depthTexture;
-        uniform vec2 cameraNearFar;
-
-        void main() {
-
-            float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
-            float viewZ = - perspectiveDepthToViewZ( depth, cameraNearFar.x, cameraNearFar.y );
-			gl_FragColor.rgb = vec3( viewZ ); // in meters
-            gl_FragColor.a = 1.0;
-
-        }
-    `,
+	fragmentShader: depthFrag,
 }
 
 export class IShatMyselfPass extends Pass {
@@ -85,10 +55,13 @@ export class IShatMyselfPass extends Pass {
 
 	private downSampling = 4
 
+	private fsQuad: FullScreenQuad
+
 	public constructor(private scene: Scene, private camera: PerspectiveCamera, private readonly resolution: Vector2) {
 		super()
 
 		this.material = new ShaderMaterial({
+			defines: Object.assign({}, DepthShader.defines),
 			uniforms: DepthShader.uniforms,
 			vertexShader: DepthShader.vertexShader,
 			fragmentShader: DepthShader.fragmentShader,
@@ -96,6 +69,8 @@ export class IShatMyselfPass extends Pass {
 			depthTest: false,
 			depthWrite: false,
 		})
+
+		this.fsQuad = new FullScreenQuad(this.material)
 
 		this.depthMaterial = new MeshDepthMaterial()
 		this.depthMaterial.side = DoubleSide
@@ -108,10 +83,21 @@ export class IShatMyselfPass extends Pass {
 		)
 		this.depthBuffer.texture.name = 'Depth'
 		this.depthBuffer.texture.generateMipmaps = false
+
+		this.material.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
+		this.material.uniforms.resolution.value = new Vector2(resolution.x, resolution.y)
+		this.material.uniforms.cameraWorldMatrix.value = this.camera.matrixWorld
+		this.material.uniforms.cameraProjectionMatrixInverse.value = this.camera.projectionMatrixInverse.clone()
 	}
 
 	private updateTextureMatrix(): void {
-		this.textureMatrix.set(0.5, 0.0, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 1.0)
+		// prettier-ignore
+		this.textureMatrix.set(
+			0.5, 0.0, 0.0, 0.5,
+			0.0, 0.5, 0.0, 0.5,
+			0.0, 0.0, 0.5, 0.5,
+			0.0, 0.0, 0.0, 1.0
+		)
 		this.textureMatrix.multiply(this.camera.projectionMatrix)
 		this.textureMatrix.multiply(this.camera.matrixWorldInverse)
 	}
@@ -124,26 +110,25 @@ export class IShatMyselfPass extends Pass {
 		maskActive: boolean
 	): void {
 		// render depth texture
-
 		this.scene.overrideMaterial = this.depthMaterial
 		renderer.setRenderTarget(this.depthBuffer)
 		renderer.render(this.scene, this.camera)
 		this.scene.overrideMaterial = null
 
 		if (this.renderToScreen) {
-			this.scene.overrideMaterial = this.material
-
 			this.updateTextureMatrix()
-			this.material.uniforms['cameraNearFar'].value.set(this.camera.near, this.camera.far)
+
+			// TODO add shadow map
+			this.material.uniforms['colorTexture'].value = readBuffer.texture
 			this.material.uniforms['depthTexture'].value = this.depthBuffer.texture
 			this.material.uniforms['textureMatrix'].value = this.textureMatrix
+			this.material.uniforms['cameraPosition'].value = this.camera.position
+			this.material.uniforms['time'].value = (Date.now() - startTime) / 10000
 
 			renderer.setRenderTarget(null)
 			renderer.clear()
-			renderer.render(this.scene, this.camera)
-			this.scene.overrideMaterial = null
+
+			this.fsQuad.render(renderer)
 		}
 	}
 }
-
-// NOTE the other way is shown in examples/webgl_depth_texture.html
