@@ -30,12 +30,6 @@ const DEFAULT = {
 function buildItem(it: Item) {
 	const input = it.folder ? `src/${it.folder}/${it.id}/index.ts` : `src/${it.id}/index.ts`
 	const output = it.folder ? `public/build/${it.folder}/${it.id}.js` : `public/build/${it.id}.js`
-	console.log({
-		...DEFAULT,
-		input,
-		output,
-	})
-
 	return {
 		...DEFAULT,
 		input,

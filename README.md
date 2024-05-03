@@ -7,3 +7,7 @@ Random three.js shit
         npm run watch
 
 Then serve public folder
+
+# TODO
+
+[] add liveserver to package

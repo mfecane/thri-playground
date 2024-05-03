@@ -73,21 +73,14 @@ float Noise3d(in vec3 p)
 
 float densityFunction(vec3 point) {
 	vec4 vDirectionalShadowCoord = directionalShadowMatrix * vec4(point, 1.0);
-	float shadow = getShadow(
+	float shdwo = getShadow(
 		shadowMap, vec2(512.0, 512.0), 0.0, 1.0, vDirectionalShadowCoord
 	);
 	if (point.y < -0.5) {
 		return 0.0;
 	}
-	vec3 pp = point;
-	float density = Noise3d(pp * 0.4 + vec3(time / 4.0));
-	// ground density
-	density += 0.2 * smoothstep(1.0, 0.0, point.y);
-	// shadow
-	density *= shadow;
-	// falloff
-	density *= smoothstep(3.0, 0.0, length(point));
-    return density;
+	vec3 pp = point; // + vec3(0.0, rand(vUv + point.xy) * 10.0, 0.0);
+    return (Noise3d(pp * 0.4 + vec3(time / 4.0)) + 0.2 * smoothstep(1.0, 0.0, point.y)) * shdwo * smoothstep(3.0, 0.0, length(point));
 }
 
 float volumetricMarch(vec3 ro, vec3 rd, float depth) {
@@ -109,11 +102,6 @@ float volumetricMarch(vec3 ro, vec3 rd, float depth) {
 	return dens;
 }
 
-vec3 rayNoise(vec3 n) {
-	float scale = 0.01;
-	return scale * (vec3(rand(n.xy), rand(n.yz), rand(n.zx)) - vec3(0.5)); 
-}
-
 void main() {
     float viewZ = -getViewZ( getDepth( vUv ) ); // in meters
 
@@ -122,8 +110,6 @@ void main() {
 	vec2 screenPos = ( gl_FragCoord.xy * 2.0 - resolution ) / resolution;
 	vec4 ndcRay = vec4( screenPos.xy, 1.0, 1.0 );
 	vec3 rayDirection = ( cameraWorldMatrix * cameraProjectionMatrixInverse * ndcRay ).xyz;
-	// antialias dithering
-	rayDirection += rayNoise(rayDirection);
 
 	float d = volumetricMarch(rayOrigin, rayDirection, viewZ);
 	vec3 col = vec3(d);
