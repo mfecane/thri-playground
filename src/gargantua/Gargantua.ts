@@ -27,6 +27,7 @@ export class Gargantua {
 			iResolution: { value: new Vector2() },
 			iChannel0: { value: null },
 			iChannel1: { value: null },
+			iChannel2: { value: null },
 		},
 
 		vertexShader: quadVert,
@@ -98,18 +99,30 @@ export class Gargantua {
 
 	private readonly downsampling = 1.0
 
-	private readonly bufferA: WebGLRenderTarget
-	private readonly bufferB: WebGLRenderTarget
-	private readonly bufferC: WebGLRenderTarget
-	private readonly bufferD: WebGLRenderTarget
+	private bufferA: WebGLRenderTarget
+	private bufferA1: WebGLRenderTarget
+	private bufferB: WebGLRenderTarget
+	private bufferC: WebGLRenderTarget
+	private bufferD: WebGLRenderTarget
 
 	public constructor(private readonly renderer: WebGLRenderer) {
 		this.renderer.getSize(this.size)
 
 		this.bufferA = new WebGLRenderTarget(this.size.x / this.downsampling, this.size.y / this.downsampling)
+		this.bufferA.texture.name = 'Buffer A'
+		this.bufferA.texture.generateMipmaps = false
+		this.bufferA1 = new WebGLRenderTarget(this.size.x / this.downsampling, this.size.y / this.downsampling)
+		this.bufferA1.texture.name = 'Buffer A1'
+		this.bufferA1.texture.generateMipmaps = false
 		this.bufferB = new WebGLRenderTarget(this.size.x / this.downsampling, this.size.y / this.downsampling)
+		this.bufferB.texture.name = 'Buffer B'
+		this.bufferB.texture.generateMipmaps = false
 		this.bufferC = new WebGLRenderTarget(this.size.x / this.downsampling, this.size.y / this.downsampling)
+		this.bufferC.texture.name = 'Buffer C'
+		this.bufferC.texture.generateMipmaps = false
 		this.bufferD = new WebGLRenderTarget(this.size.x / this.downsampling, this.size.y / this.downsampling)
+		this.bufferD.texture.name = 'Buffer D'
+		this.bufferD.texture.generateMipmaps = false
 	}
 
 	public async init(): Promise<void> {
@@ -146,6 +159,7 @@ export class Gargantua {
 		this.material1.uniforms.iTime.value = time
 		this.material1.uniforms.iChannel0.value = this.texture0
 		this.material1.uniforms.iChannel1.value = this.texture1
+		this.material1.uniforms.iChannel2.value = this.bufferA1.texture
 		this.fsQuad.material = this.material1
 		this.renderer.setRenderTarget(this.bufferA)
 		this.fsQuad.render(this.renderer)
@@ -172,5 +186,10 @@ export class Gargantua {
 		this.fsQuad.material = this.material5
 		this.renderer.setRenderTarget(null)
 		this.fsQuad.render(this.renderer)
+
+		// swap buffer A
+		const tmp = this.bufferA1
+		this.bufferA1 = this.bufferA
+		this.bufferA = tmp
 	}
 }

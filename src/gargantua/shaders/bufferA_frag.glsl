@@ -28,7 +28,7 @@ Temporal AA for a smooth image. Temporal accumulation is disabled while moving t
 #define PI 3.14159265359
 
 #define ITERATIONS 150          //Increase for less grainy result
-// #define TEMPORAL_AA
+#define TEMPORAL_AA
 #define ORIGIN vec3(0.0)
 #define SCREEN_SCALE 5.0
 #define SPEED_SCALE 1.0

@@ -15,6 +15,7 @@ const folders: Item[] = [
 	{ id: 'fog', folder: null },
 	{ id: 'volumetric-shadow', folder: 'archive' },
 	{ id: 'gargantua', folder: null },
+	{ id: '3dnoise', folder: null },
 ]
 
 const DEFAULT = {
