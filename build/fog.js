@@ -30774,6 +30774,20 @@ class DirectionalLight extends Light {
 
 }
 
+class AmbientLight extends Light {
+
+	constructor( color, intensity ) {
+
+		super( color, intensity );
+
+		this.isAmbientLight = true;
+
+		this.type = 'AmbientLight';
+
+	}
+
+}
+
 class Clock {
 
 	constructor( autoStart = true ) {
@@ -33084,7 +33098,7 @@ class RenderPass extends Pass {
 
 var depthVert = "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
 
-var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 50\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float tri(in float x){return abs(fract(x)-.5);}vec3 tri3(in vec3 p){return vec3(tri(p.z+tri(p.y)),tri(p.z+tri(p.x)),tri(p.y+tri(p.x)));}float rand(vec2 n){return fract(sin(dot(n,vec2(12.9898,4.1414)))*43758.5453);}float Noise3d(in vec3 p){float z=1.4;float rz=0.;vec3 bp=p;for(float i=0.;i<=2.;i++){vec3 dg=tri3(bp);p+=(dg);bp*=2.;z*=1.5;p*=1.3;rz+=(tri(p.z+tri(p.x+tri(p.y))))/z;bp+=0.14;}return rz;}float densityFunction(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);float shdwo=getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);if(point.y<-0.5){return 0.0;}vec3 pp=point;return(Noise3d(pp*0.4+vec3(time/4.0))+0.2*smoothstep(1.0,0.0,point.y))*shdwo*smoothstep(3.0,0.0,length(point));}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dO=0.0;float dens=0.0;float step=min(0.2,depth/float(MAX_STEPS));step+=rand(vUv)*0.05;float density=0.2;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth+0.1||dens>0.9){break;}}return dens;}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
+var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 50\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float tri(in float x){return abs(fract(x)-.5);}vec3 tri3(in vec3 p){return vec3(tri(p.z+tri(p.y)),tri(p.z+tri(p.x)),tri(p.y+tri(p.x)));}float rand(vec2 n){return fract(sin(dot(n,vec2(12.9898,4.1414)))*43758.5453);}float Noise3d(in vec3 p){float z=1.4;float rz=0.;vec3 bp=p;for(float i=0.;i<=2.;i++){vec3 dg=tri3(bp);p+=(dg);bp*=2.;z*=1.5;p*=1.3;rz+=(tri(p.z+tri(p.x+tri(p.y))))/z;bp+=0.14;}return rz;}float densityFunction(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);float shadow=getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);if(point.y<-0.5){return 0.0;}vec3 pp=point;float density=Noise3d(pp*0.4+vec3(time/4.0));density+=0.2*smoothstep(1.0,0.0,point.y);density*=shadow;density*=smoothstep(3.0,0.0,length(point));return density;}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dO=0.0;float dens=0.0;float step=min(0.2,depth/float(MAX_STEPS));step+=rand(vUv)*0.05;float density=0.2;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth+0.1||dens>0.9){break;}}return dens;}vec3 rayNoise(vec3 n){float scale=0.01;return scale*(vec3(rand(n.xy),rand(n.yz),rand(n.zx))-vec3(0.5));}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;rayDirection+=rayNoise(rayDirection);float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
 
 let startTime = Date.now();
 const SmokeShader = {
@@ -33128,7 +33142,9 @@ const OVERLAY_MATERIAL = new ShaderMaterial({
 		uniform sampler2D readBuffer;
 
 		void main() {
-			gl_FragColor = vec4(texture2D(readBuffer, vUv).rgb + texture2D(smokeBuffer, vUv).rgb, 1.0);
+			float smoke = texture2D(smokeBuffer, vUv).r;
+			gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke * vec3(0.8, 0.8, 1.0);
+			gl_FragColor.a = 1.0;
 		}`,
     // blending: AdditiveBlending,
     depthTest: false,
@@ -35708,6 +35724,7 @@ function init() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFShadowMap;
     scene = new Scene();
+    scene.background = new Color$1(0.05, 0.05, 0.07);
     camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     addCube(scene);
     addPlane(scene);
@@ -35738,7 +35755,7 @@ function addPlane(scene) {
     scene.add(plane);
 }
 function addLight(scene) {
-    light = new DirectionalLight(0xffc9b8, 1.0);
+    light = new DirectionalLight(0xe6f6ff, 1.0);
     light.position.set(0, 2, 0);
     light.castShadow = true;
     light.shadow.camera.near = 0.1;
@@ -35748,6 +35765,7 @@ function addLight(scene) {
     light.shadow.camera.left = -2.0;
     light.shadow.camera.right = 2.0;
     scene.add(light);
+    scene.add(new AmbientLight(0xffeae6, 0.1));
     // const sh = new DirectionalLightHelper(light)
     // scene.add(sh)
     // const sh2 = new CameraHelper(light.shadow.camera)
