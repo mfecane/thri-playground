@@ -116,7 +116,7 @@ ul li:not(:first-child) {
 	font-size: 1.2rem;
 }
 
-ul li a {
+ul li > a {
 	display: block;
 	margin-bottom: 10px;
 }
