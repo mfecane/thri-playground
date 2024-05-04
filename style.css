@@ -103,6 +103,13 @@ h1 {
 	margin-bottom: 20px;
 }
 
+h2 {
+	font-weight: 600;
+	font-size: 1.5rem;
+	margin-top: 20px;
+	margin-bottom: 12px;
+}
+
 ul {
 	margin: 20px 0;
 }
@@ -116,7 +123,7 @@ ul li:not(:first-child) {
 	font-size: 1.2rem;
 }
 
-ul li a {
+ul li > a {
 	display: block;
 	margin-bottom: 10px;
 }
