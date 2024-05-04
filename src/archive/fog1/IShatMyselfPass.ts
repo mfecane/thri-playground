@@ -19,7 +19,6 @@ import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js'
 
 import depthVert from './shaders/depth_vert.glsl'
 import depthFrag from './shaders/depth_frag.glsl'
-import { loadTexture } from './LoadTexture'
 
 let startTime = Date.now()
 
@@ -42,7 +41,6 @@ const SmokeShader = {
 		cameraProjectionMatrixInverse: { value: null },
 		cameraPosition: { value: null },
 		time: { value: 0 },
-		texture3d: { value: null },
 
 		// light
 		shadowMap: { value: null },
@@ -141,11 +139,6 @@ export class IShatMyselfPass extends Pass {
 		)
 		this.someBuffer.texture.name = 'Some buffer'
 		this.someBuffer.texture.generateMipmaps = false
-	}
-
-	public async init() {
-		const texture3d = await loadTexture('assets/textures/3d-noise.png')
-		this.smokeMaterial.uniforms['texture3d'].value = texture3d
 	}
 
 	public render(

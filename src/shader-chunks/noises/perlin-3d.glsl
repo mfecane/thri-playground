@@ -1,8 +1,4 @@
-uniform int xedni;
-uniform int total;
-
-varying vec2 vUv;
-
+//#region
 //	Classic Perlin 3D Noise 
 //	by Stefan Gustavson
 //
@@ -77,12 +73,4 @@ float cnoise(vec3 P){
   float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
   return 2.2 * n_xyz;
 }
-
-void main() {
-    vec3 silmpplas = (vec3(vUv.x, vUv.y, float(xedni) / float(total)) - 0.5) * 2.0;
-    float n = cnoise(silmpplas * 6.0);
-    n = smoothstep(1.0, -1.0, n);
-    n *= smoothstep(1.0, 0.0, length(silmpplas));
-	gl_FragColor.rgb = vec3(n);
-    gl_FragColor.a = 1.0;
-}
+//#endregion

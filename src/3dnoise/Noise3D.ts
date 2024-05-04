@@ -4,8 +4,8 @@ import quadVert from './shaders/quad_vert.glsl'
 
 // change noises here
 
-// import bufferAfrag from './shaders/classic_perlin_frag.glsl'
-import bufferAfrag from './shaders/nikita_noise_frag.glsl'
+import bufferAfrag from './shaders/classic_perlin_frag.glsl'
+//import bufferAfrag from './shaders/nikita_noise_frag.glsl'
 
 export class Noise3D {
 	private readonly COUNT = 64
@@ -13,7 +13,6 @@ export class Noise3D {
 	public renderer = new WebGLRenderer()
 
 	private material1 = new ShaderMaterial({
-		// TODO add mouse
 		uniforms: {
 			xedni: { value: 0 },
 			total: { value: 0 },

@@ -7,13 +7,14 @@ interface Item {
 	folder: string | null
 }
 
-const folders: Item[] = [
+const entries: Item[] = [
 	{ id: 'depthpass', folder: 'archive' },
 	{ id: 'raymarch-test', folder: 'archive' },
 	{ id: 'raymarch-and-geo', folder: 'archive' },
 	{ id: 'noise-fog', folder: 'archive' },
-	{ id: 'fog', folder: null },
 	{ id: 'volumetric-shadow', folder: 'archive' },
+	{ id: 'fog1', folder: 'archive' },
+	{ id: 'fog', folder: null },
 	{ id: 'gargantua', folder: null },
 	{ id: '3dnoise', folder: null },
 ]
@@ -39,4 +40,4 @@ function buildItem(it: Item) {
 	}
 }
 
-export default [...folders.map((it: Item) => buildItem(it))]
+export default [...entries.map((it: Item) => buildItem(it))]

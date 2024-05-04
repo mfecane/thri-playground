@@ -70,9 +70,7 @@ function init() {
 	composer = new EffectComposer(renderer)
 	composer.addPass(new RenderPass(scene, camera))
 	// composer.addPass(new ShaderPass(GammaCorrectionShader))
-	const pass = new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light)
-	pass.init()
-	composer.addPass(pass)
+	composer.addPass(new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light))
 
 	// const ah = new AxesHelper()
 	// scene.add(ah)
