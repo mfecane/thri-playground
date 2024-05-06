@@ -33468,7 +33468,7 @@ class RenderPass extends Pass {
 
 var depthVert = "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
 
-var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 50\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\n#define TEXTURE_SIZE_3D 8.0\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D texture3d;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float rand(vec2 n){return fract(sin(dot(n,vec2(12.9898,4.1414)))*43758.5453);}float sampleNoise3d(vec3 p){vec3 p2=(p+vec3(1.0))/2.0;float size=TEXTURE_SIZE_3D;float yIndex=p2.z*(size*size-1.0);float row=floor(yIndex/size);float col=floor(yIndex-row*size);vec2 uv2=(vec2(col,row)+p2.xy)/size;float cut=smoothstep(1.0,0.9,max(abs(p.x),max(abs(p.y),abs(p.z))));return texture(texture3d,uv2).g*cut;}float Noise3d(in vec3 p){return sampleNoise3d(p/3.0);}float getWorldShadow(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);return getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);}float densityFunction(vec3 point){vec3 pp=point;float density=Noise3d(pp);density*=getWorldShadow(point);return density;}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dO=0.0;float dens=0.0;float step=min(0.2,depth/float(MAX_STEPS));float density=0.1;for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth+0.1||dens>0.9){break;}}return dens;}vec3 rayNoise(vec3 n){float scale=0.01;return scale*(vec3(rand(n.xy),rand(n.yz),rand(n.zx))-vec3(0.5));}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
+var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 50\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\n#define TEXTURE_SIZE_3D 8.0\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D texture3d;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform float scale2;uniform float scale3;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float rand(vec2 n){return fract(sin(dot(n,vec2(12.9898,4.1414)))*43758.5453);}vec3 sampleNoise3d(vec3 p){vec3 p2=fract((p+vec3(1.0))/2.0);float size=TEXTURE_SIZE_3D;float yIndex=p2.z*(size*size-1.0);float row=floor(yIndex/size);float col=floor(yIndex-row*size);vec2 uv2=(vec2(col,row)+p2.xy)/size;return texture(texture3d,uv2).rgb;}float Noise3d(in vec3 p){vec3 shift=vec3(1.213*sin(iTime/2.0),2.312*cos(iTime/2.0),0.312);vec3 samplePoint=p+scale3*(sampleNoise3d(p/4.0+shift));float noise=sampleNoise3d(samplePoint/scale2).r*sampleNoise3d(samplePoint.yzx/scale2).g*sampleNoise3d(samplePoint.zxy/scale2).b;return noise;}float getWorldShadow(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);return getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);}float densityFunction(vec3 point){vec3 pp=point;float density=Noise3d(pp);density*=getWorldShadow(point);return density;}bool rayIntersectInfiniteCylinder(vec3 ro,vec3 rd,out float near,out float far){vec3 rdp=vec3(rd.x,0.0,rd.z);vec3 rop=vec3(ro.x,0.0,ro.z);float b=dot(rdp,rop);float a=dot(rdp,rdp);float c=dot(rop,rop)-4.0;float det=b*b-a*c;if(det>0.0){float detsqrt=sqrt(det);near=(-b-detsqrt)/a;far=(-b+detsqrt)/a;return far>0.0;}return false;}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dens=0.0;float step=min(0.2,depth/float(MAX_STEPS))+rand(vUv)*0.05;float density=0.1;float near=0.0,far=0.0;if(!rayIntersectInfiniteCylinder(ro,rd,near,far)){return 0.0;}float dO=max(0.0,near);for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth+0.1||dens>0.9||dO>far){break;}}return dens;}vec3 rayNoise(vec3 n){float scale=0.01;return scale*(vec3(rand(n.xy),rand(n.yz),rand(n.zx))-vec3(0.5));}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
 
 function loadTexture(src_1) {
     return __awaiter(this, arguments, void 0, function* (src, flip = false, srgb = false) {
@@ -33508,6 +33508,8 @@ const SmokeShader = {
         // light
         shadowMap: { value: null },
         directionalShadowMatrix: { value: null },
+        scale2: { value: 0.0 },
+        scale3: { value: 0.0 },
     },
     vertexShader: depthVert,
     fragmentShader: depthFrag,
@@ -33546,6 +33548,8 @@ class IShatMyselfPass extends Pass {
         this.resolution = resolution;
         this.light = light;
         this.downSampling = 2;
+        this.scale2 = 4.0;
+        this.scale3 = 1.0;
         this.fsQuad = new FullScreenQuad();
         this.depthMaterial = new MeshDepthMaterial();
         this.depthMaterial.side = DoubleSide;
@@ -33588,9 +33592,11 @@ class IShatMyselfPass extends Pass {
         //#region render smoke
         this.smokeMaterial.uniforms['depthTexture'].value = this.depthBuffer.texture;
         this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position;
-        this.smokeMaterial.uniforms['time'].value = (Date.now() - startTime) / 10000;
+        this.smokeMaterial.uniforms.time.value = (Date.now() - startTime) / 10000;
         this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map.texture;
         this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix;
+        this.smokeMaterial.uniforms.scale2.value = this.scale2;
+        this.smokeMaterial.uniforms.scale3.value = this.scale3;
         this.fsQuad.material = this.smokeMaterial;
         renderer.setRenderTarget(this.someBuffer);
         renderer.clear();
@@ -33604,6 +33610,107 @@ class IShatMyselfPass extends Pass {
             renderer.clear();
             this.fsQuad.render(renderer);
         }
+    }
+}
+
+class Stats {
+    constructor() {
+        this.mode = 0;
+        this.beginTime = (performance || Date).now();
+        this.prevTime = this.beginTime;
+        this.frames = 0;
+        this.container = document.createElement('div');
+        this.container.style.cssText = 'position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000';
+        this.container.addEventListener('click', (event) => {
+            event.preventDefault();
+            this.showPanel(++this.mode % this.container.children.length);
+        }, false);
+        this.fpsPanel = this.addPanel(new Panel('FPS', '#0ff', '#002'));
+        this.msPanel = this.addPanel(new Panel('MS', '#0f0', '#020'));
+        //@ts-ignore fuck off
+        if (globalThis.performance && globalThis.performance.memory) {
+            this.memPanel = this.addPanel(new Panel('MB', '#f08', '#201'));
+        }
+        this.showPanel(0);
+    }
+    begin() {
+        this.beginTime = (performance || Date).now();
+    }
+    end() {
+        this.frames++;
+        var time = (performance || Date).now();
+        this.msPanel.update(time - this.beginTime, 200);
+        if (time > this.prevTime + 1000) {
+            this.fpsPanel.update((this.frames * 1000) / (time - this.prevTime), 100);
+            this.prevTime = time;
+            this.frames = 0;
+            if (this.memPanel) {
+                //@ts-ignore fuck off
+                var memory = performance.memory;
+                this.memPanel.update(memory.usedJSHeapSize / 1048576, memory.jsHeapSizeLimit / 1048576);
+            }
+        }
+        return time;
+    }
+    update() {
+        this.beginTime = this.end();
+    }
+    showPanel(id) {
+        for (var i = 0; i < this.container.children.length; i++) {
+            this.container.children[i].style.display = i === id ? 'block' : 'none';
+        }
+        this.mode = id;
+    }
+    addPanel(panel) {
+        this.container.appendChild(panel.canvas);
+        return panel;
+    }
+}
+class Panel {
+    constructor(name, fg, bg) {
+        this.name = name;
+        this.fg = fg;
+        this.bg = bg;
+        this.min = Infinity;
+        this.max = 0;
+        this.PR = Math.round(window.devicePixelRatio || 1);
+        this.WIDTH = 80 * this.PR;
+        this.HEIGHT = 48 * this.PR;
+        this.TEXT_X = 3 * this.PR;
+        this.TEXT_Y = 2 * this.PR;
+        this.GRAPH_X = 3 * this.PR;
+        this.GRAPH_Y = 15 * this.PR;
+        this.GRAPH_WIDTH = 74 * this.PR;
+        this.GRAPH_HEIGHT = 30 * this.PR;
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = this.WIDTH;
+        this.canvas.height = this.HEIGHT;
+        this.canvas.style.cssText = 'width:80px;height:48px';
+        this.context = this.canvas.getContext('2d');
+        this.context.font = 'bold ' + 9 * this.PR + 'px Helvetica,Arial,sans-serif';
+        this.context.textBaseline = 'top';
+        this.context.fillStyle = bg;
+        this.context.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        this.context.fillStyle = fg;
+        this.context.fillText(this.name, this.TEXT_X, this.TEXT_Y);
+        this.context.fillRect(this.GRAPH_X, this.GRAPH_Y, this.GRAPH_WIDTH, this.GRAPH_HEIGHT);
+        this.context.fillStyle = bg;
+        this.context.globalAlpha = 0.9;
+        this.context.fillRect(this.GRAPH_X, this.GRAPH_Y, this.GRAPH_WIDTH, this.GRAPH_HEIGHT);
+    }
+    update(value, maxValue) {
+        this.min = Math.min(this.min, value);
+        this.max = Math.max(this.max, value);
+        this.context.fillStyle = this.bg;
+        this.context.globalAlpha = 1;
+        this.context.fillRect(0, 0, this.WIDTH, this.GRAPH_Y);
+        this.context.fillStyle = this.fg;
+        this.context.fillText(Math.round(value) + ' ' + this.name + ' (' + Math.round(this.min) + '-' + Math.round(this.max) + ')', this.TEXT_X, this.TEXT_Y);
+        this.context.drawImage(this.canvas, this.GRAPH_X + this.PR, this.GRAPH_Y, this.GRAPH_WIDTH - this.PR, this.GRAPH_HEIGHT, this.GRAPH_X, this.GRAPH_Y, this.GRAPH_WIDTH - this.PR, this.GRAPH_HEIGHT);
+        this.context.fillRect(this.GRAPH_X + this.GRAPH_WIDTH - this.PR, this.GRAPH_Y, this.PR, this.GRAPH_HEIGHT);
+        this.context.fillStyle = this.bg;
+        this.context.globalAlpha = 0.9;
+        this.context.fillRect(this.GRAPH_X + this.GRAPH_WIDTH - this.PR, this.GRAPH_Y, this.PR, Math.round((1 - value / maxValue) * this.GRAPH_HEIGHT));
     }
 }
 
@@ -36099,17 +36206,19 @@ function updateDisplays(controllerArray) {
 }
 var GUI$1 = GUI;
 
-let renderer, scene, camera, controls, light, composer;
+let renderer, scene, camera, controls, light, composer, stats, passs;
 function animate() {
     return __awaiter(this, void 0, void 0, function* () {
         // await new Promise((resolve) => setTimeout(resolve, 200))
         requestAnimationFrame(animate);
+        stats.begin();
         let time = performance.now() * 0.002;
         light.position.x = Math.sin(time * 0.1) * 2.0;
         light.position.y = 2.0;
         light.position.z = Math.cos(time * 0.1) * 2.0;
         composer.render();
         controls.update();
+        stats.end();
     });
 }
 function init() {
@@ -36129,11 +36238,13 @@ function init() {
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     // composer.addPass(new ShaderPass(GammaCorrectionShader))
-    const pass = new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light);
-    pass.init();
-    composer.addPass(pass);
+    passs = new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light);
+    passs.init();
+    composer.addPass(passs);
     // const ah = new AxesHelper()
     // scene.add(ah)
+    stats = new Stats();
+    document.body.appendChild(stats.container);
 }
 function addCube(scene) {
     const cube = new Mesh(new BoxGeometry(1, 1.0, 1), new MeshStandardMaterial({ color: 0xffffff }));
@@ -36169,5 +36280,7 @@ function addLight(scene) {
 window.addEventListener('load', () => {
     init();
     animate();
-    new GUI$1();
+    const gui = new GUI$1();
+    gui.add(passs, 'scale2', 0.0, 10.0);
+    gui.add(passs, 'scale3', 0.0, 1.0);
 });

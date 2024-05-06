@@ -36,6 +36,9 @@ typeof SuppressedError === "function" ? SuppressedError : function (error, suppr
  * SPDX-License-Identifier: MIT
  */
 const REVISION = '164';
+
+const MOUSE = { LEFT: 0, MIDDLE: 1, RIGHT: 2, ROTATE: 0, DOLLY: 1, PAN: 2 };
+const TOUCH = { ROTATE: 0, PAN: 1, DOLLY_PAN: 2, DOLLY_ROTATE: 3 };
 const CullFaceNone = 0;
 const CullFaceBack = 1;
 const CullFaceFront = 2;
@@ -285,6 +288,8 @@ class EventDispatcher {
 
 const _lut = [ '00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '0a', '0b', '0c', '0d', '0e', '0f', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '1a', '1b', '1c', '1d', '1e', '1f', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '2a', '2b', '2c', '2d', '2e', '2f', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '3a', '3b', '3c', '3d', '3e', '3f', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '4a', '4b', '4c', '4d', '4e', '4f', '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '5a', '5b', '5c', '5d', '5e', '5f', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '6a', '6b', '6c', '6d', '6e', '6f', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '7a', '7b', '7c', '7d', '7e', '7f', '80', '81', '82', '83', '84', '85', '86', '87', '88', '89', '8a', '8b', '8c', '8d', '8e', '8f', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', '9a', '9b', '9c', '9d', '9e', '9f', 'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9', 'ba', 'bb', 'bc', 'bd', 'be', 'bf', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'ca', 'cb', 'cc', 'cd', 'ce', 'cf', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'da', 'db', 'dc', 'dd', 'de', 'df', 'e0', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8', 'e9', 'ea', 'eb', 'ec', 'ed', 'ee', 'ef', 'f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'fa', 'fb', 'fc', 'fd', 'fe', 'ff' ];
 
+let _seed = 1234567;
+
 
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
@@ -320,10 +325,193 @@ function euclideanModulo( n, m ) {
 
 }
 
+// Linear mapping from range <a1, a2> to range <b1, b2>
+function mapLinear( x, a1, a2, b1, b2 ) {
+
+	return b1 + ( x - a1 ) * ( b2 - b1 ) / ( a2 - a1 );
+
+}
+
+// https://www.gamedev.net/tutorials/programming/general-and-gameplay-programming/inverse-lerp-a-super-useful-yet-often-overlooked-function-r5230/
+function inverseLerp( x, y, value ) {
+
+	if ( x !== y ) {
+
+		return ( value - x ) / ( y - x );
+
+	} else {
+
+		return 0;
+
+	}
+
+}
+
 // https://en.wikipedia.org/wiki/Linear_interpolation
 function lerp( x, y, t ) {
 
 	return ( 1 - t ) * x + t * y;
+
+}
+
+// http://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
+function damp( x, y, lambda, dt ) {
+
+	return lerp( x, y, 1 - Math.exp( - lambda * dt ) );
+
+}
+
+// https://www.desmos.com/calculator/vcsjnyz7x4
+function pingpong( x, length = 1 ) {
+
+	return length - Math.abs( euclideanModulo( x, length * 2 ) - length );
+
+}
+
+// http://en.wikipedia.org/wiki/Smoothstep
+function smoothstep( x, min, max ) {
+
+	if ( x <= min ) return 0;
+	if ( x >= max ) return 1;
+
+	x = ( x - min ) / ( max - min );
+
+	return x * x * ( 3 - 2 * x );
+
+}
+
+function smootherstep( x, min, max ) {
+
+	if ( x <= min ) return 0;
+	if ( x >= max ) return 1;
+
+	x = ( x - min ) / ( max - min );
+
+	return x * x * x * ( x * ( x * 6 - 15 ) + 10 );
+
+}
+
+// Random integer from <low, high> interval
+function randInt( low, high ) {
+
+	return low + Math.floor( Math.random() * ( high - low + 1 ) );
+
+}
+
+// Random float from <low, high> interval
+function randFloat( low, high ) {
+
+	return low + Math.random() * ( high - low );
+
+}
+
+// Random float from <-range/2, range/2> interval
+function randFloatSpread( range ) {
+
+	return range * ( 0.5 - Math.random() );
+
+}
+
+// Deterministic pseudo-random float in the interval [ 0, 1 ]
+function seededRandom( s ) {
+
+	if ( s !== undefined ) _seed = s;
+
+	// Mulberry32 generator
+
+	let t = _seed += 0x6D2B79F5;
+
+	t = Math.imul( t ^ t >>> 15, t | 1 );
+
+	t ^= t + Math.imul( t ^ t >>> 7, t | 61 );
+
+	return ( ( t ^ t >>> 14 ) >>> 0 ) / 4294967296;
+
+}
+
+function degToRad( degrees ) {
+
+	return degrees * DEG2RAD;
+
+}
+
+function radToDeg( radians ) {
+
+	return radians * RAD2DEG;
+
+}
+
+function isPowerOfTwo( value ) {
+
+	return ( value & ( value - 1 ) ) === 0 && value !== 0;
+
+}
+
+function ceilPowerOfTwo( value ) {
+
+	return Math.pow( 2, Math.ceil( Math.log( value ) / Math.LN2 ) );
+
+}
+
+function floorPowerOfTwo( value ) {
+
+	return Math.pow( 2, Math.floor( Math.log( value ) / Math.LN2 ) );
+
+}
+
+function setQuaternionFromProperEuler( q, a, b, c, order ) {
+
+	// Intrinsic Proper Euler Angles - see https://en.wikipedia.org/wiki/Euler_angles
+
+	// rotations are applied to the axes in the order specified by 'order'
+	// rotation by angle 'a' is applied first, then by angle 'b', then by angle 'c'
+	// angles are in radians
+
+	const cos = Math.cos;
+	const sin = Math.sin;
+
+	const c2 = cos( b / 2 );
+	const s2 = sin( b / 2 );
+
+	const c13 = cos( ( a + c ) / 2 );
+	const s13 = sin( ( a + c ) / 2 );
+
+	const c1_3 = cos( ( a - c ) / 2 );
+	const s1_3 = sin( ( a - c ) / 2 );
+
+	const c3_1 = cos( ( c - a ) / 2 );
+	const s3_1 = sin( ( c - a ) / 2 );
+
+	switch ( order ) {
+
+		case 'XYX':
+			q.set( c2 * s13, s2 * c1_3, s2 * s1_3, c2 * c13 );
+			break;
+
+		case 'YZY':
+			q.set( s2 * s1_3, c2 * s13, s2 * c1_3, c2 * c13 );
+			break;
+
+		case 'ZXZ':
+			q.set( s2 * c1_3, s2 * s1_3, c2 * s13, c2 * c13 );
+			break;
+
+		case 'XZX':
+			q.set( c2 * s13, s2 * s3_1, s2 * c3_1, c2 * c13 );
+			break;
+
+		case 'YXY':
+			q.set( s2 * c3_1, c2 * s13, s2 * s3_1, c2 * c13 );
+			break;
+
+		case 'ZYZ':
+			q.set( s2 * s3_1, s2 * c3_1, c2 * s13, c2 * c13 );
+			break;
+
+		default:
+			console.warn( 'THREE.MathUtils: .setQuaternionFromProperEuler() encountered an unknown order: ' + order );
+
+	}
 
 }
 
@@ -406,6 +594,33 @@ function normalize( value, array ) {
 	}
 
 }
+
+const MathUtils = {
+	DEG2RAD: DEG2RAD,
+	RAD2DEG: RAD2DEG,
+	generateUUID: generateUUID,
+	clamp: clamp,
+	euclideanModulo: euclideanModulo,
+	mapLinear: mapLinear,
+	inverseLerp: inverseLerp,
+	lerp: lerp,
+	damp: damp,
+	pingpong: pingpong,
+	smoothstep: smoothstep,
+	smootherstep: smootherstep,
+	randInt: randInt,
+	randFloat: randFloat,
+	randFloatSpread: randFloatSpread,
+	seededRandom: seededRandom,
+	degToRad: degToRad,
+	radToDeg: radToDeg,
+	isPowerOfTwo: isPowerOfTwo,
+	ceilPowerOfTwo: ceilPowerOfTwo,
+	floorPowerOfTwo: floorPowerOfTwo,
+	setQuaternionFromProperEuler: setQuaternionFromProperEuler,
+	normalize: normalize,
+	denormalize: denormalize
+};
 
 class Vector2 {
 
@@ -30492,6 +30707,88 @@ class TextureLoader extends Loader {
 
 }
 
+/**
+ * Ref: https://en.wikipedia.org/wiki/Spherical_coordinate_system
+ *
+ * phi (the polar angle) is measured from the positive y-axis. The positive y-axis is up.
+ * theta (the azimuthal angle) is measured from the positive z-axis.
+ */
+class Spherical {
+
+	constructor( radius = 1, phi = 0, theta = 0 ) {
+
+		this.radius = radius;
+		this.phi = phi; // polar angle
+		this.theta = theta; // azimuthal angle
+
+		return this;
+
+	}
+
+	set( radius, phi, theta ) {
+
+		this.radius = radius;
+		this.phi = phi;
+		this.theta = theta;
+
+		return this;
+
+	}
+
+	copy( other ) {
+
+		this.radius = other.radius;
+		this.phi = other.phi;
+		this.theta = other.theta;
+
+		return this;
+
+	}
+
+	// restrict phi to be between EPS and PI-EPS
+	makeSafe() {
+
+		const EPS = 0.000001;
+		this.phi = Math.max( EPS, Math.min( Math.PI - EPS, this.phi ) );
+
+		return this;
+
+	}
+
+	setFromVector3( v ) {
+
+		return this.setFromCartesianCoords( v.x, v.y, v.z );
+
+	}
+
+	setFromCartesianCoords( x, y, z ) {
+
+		this.radius = Math.sqrt( x * x + y * y + z * z );
+
+		if ( this.radius === 0 ) {
+
+			this.theta = 0;
+			this.phi = 0;
+
+		} else {
+
+			this.theta = Math.atan2( x, z );
+			this.phi = Math.acos( clamp( y / this.radius, - 1, 1 ) );
+
+		}
+
+		return this;
+
+	}
+
+	clone() {
+
+		return new this.constructor().copy( this );
+
+	}
+
+}
+
 if ( typeof __THREE_DEVTOOLS__ !== 'undefined' ) {
 
 	__THREE_DEVTOOLS__.dispatchEvent( new CustomEvent( 'register', { detail: {
@@ -30587,7 +30884,7 @@ function loadTexture(src_1) {
 
 var quadVert = "uniform vec2 iResolution;varying vec2 vUv;varying vec2 vFragCoord;void main(){vUv=uv;vFragCoord=uv*iResolution;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
 
-var bufferAfrag = "uniform float iTime;uniform vec2 iMouse;uniform vec2 iResolution;uniform sampler2D iChannel0;uniform sampler2D iChannel1;uniform sampler2D iChannel2;varying vec2 vUv;varying vec2 vFragCoord;/*Main render.Temporal AA for a smooth image. Temporal accumulation is disabled while moving the view to prevent ghosting.*/\n#define FLOAT_MAX 3.402823466e38\n#define HALF_MAX 6.5504e4\n#define PI 3.14159265359\n#define ITERATIONS 150\n#define TEMPORAL_AA\n#define ORIGIN vec3(0.0)\n#define SCREEN_SCALE 5.0\n#define SPEED_SCALE 1.0\n#define BRIGHTNESS_CORRECTION 2\nfloat getSolidAngle(vec3 dPdx,vec3 dPdy,vec3 rd,float len){float A_rr=abs(dot(cross(dPdx,dPdy),rd))/(len*len);return A_rr;}float getSolidAngle(vec3 ro,vec3 rd,float len){return getSolidAngle(dFdx(ro),dFdy(ro),rd,len);}const vec3 MainColor=vec3(1.0);float noise(in vec3 x){vec3 p=floor(x);vec3 f=fract(x);f=f*f*(3.0-2.0*f);vec2 uv=(p.xy+vec2(37.0,17.0)*p.z)+f.xy;vec2 rg=textureLod(iChannel0,(uv+0.5)/256.0,0.0).yx;return-1.0+2.0*mix(rg.x,rg.y,f.z);}float saturate(float x){return clamp(x,0.0,1.0);}vec3 saturate(vec3 x){return clamp(x,vec3(0.0),vec3(1.0));}float rand(vec2 coord){return saturate(fract(sin(dot(coord,vec2(12.9898,78.223)))*43758.5453));}float pcurve(float x,float a,float b){float k=pow(a+b,a+b)/(pow(a,a)*pow(b,b));return k*pow(x,a)*pow(1.0-x,b);}const float pi=3.14159265;float atan2(float y,float x){if(x>0.0){return atan(y/x);}else if(x==0.0){if(y>0.0){return pi/2.0;}else if(y<0.0){return-(pi/2.0);}else{return 0.0;}}else{if(y>=0.0){return atan(y/x)+pi;}else{return atan(y/x)-pi;}}}float sdTorus(vec3 p,vec2 t){vec2 q=vec2(length(p.xz)-t.x,p.y);return length(q)-t.y;}float sdSphere(vec3 p,float r){return length(p)-r;}void Haze(inout vec3 color,vec3 pos,float alpha,float brightnessRatio){vec2 t=vec2(1.0,0.01);float torusDist=length(sdTorus(pos+vec3(0.0,-0.05,0.0),t));float bloomDisc=1.0/(pow(torusDist,2.0)+0.001);vec3 col=MainColor;bloomDisc*=length(pos)<0.5 ? 0.0 : 1.0;color+=col*bloomDisc*(2.9/float(ITERATIONS))*(1.0-alpha*1.0)*brightnessRatio;}void GasDisc(inout vec3 color,inout float alpha,vec3 pos,float brightnessRatio){float discRadius=3.2;float discWidth=5.3;float discInner=discRadius-discWidth*0.5;float discOuter=discRadius+discWidth*0.5;vec3 origin=vec3(0.0,0.0,0.0);float mouseZ=iMouse.y/iResolution.y;vec3 discNormal=normalize(vec3(0.0,1.0,0.0));float discThickness=0.1;float distFromCenter=distance(pos,origin);float distFromDisc=dot(discNormal,pos-origin);float radialGradient=1.0-saturate((distFromCenter-discInner)/discWidth*0.5);float coverage=pcurve(radialGradient,4.0,0.9);discThickness*=radialGradient;coverage*=saturate(1.0-abs(distFromDisc)/discThickness);vec3 dustColorLit=MainColor;vec3 dustColorDark=vec3(0.0,0.0,0.0);float dustGlow=1.0/(pow(1.0-radialGradient,2.0)*290.0+0.002);vec3 dustColor=dustColorLit*dustGlow*8.2;coverage=saturate(coverage*0.7);float fade=pow((abs(distFromCenter-discInner)+0.4),4.0)*0.04;float bloomFactor=1.0/(pow(distFromDisc,2.0)*40.0+fade+0.00002);vec3 b=dustColorLit*pow(bloomFactor,1.5);b*=mix(vec3(1.7,1.1,1.0),vec3(0.5,0.6,1.0),vec3(pow(radialGradient,2.0)));b*=mix(vec3(1.7,0.5,0.1),vec3(1.0),vec3(pow(radialGradient,0.5)));dustColor=mix(dustColor,b*150.0,saturate(1.0-coverage*1.0));coverage=saturate(coverage+bloomFactor*bloomFactor*0.1);if(coverage<0.01){return;}vec3 radialCoords;radialCoords.x=distFromCenter*1.5+0.55;radialCoords.y=atan2(-pos.x,-pos.z)*1.5;radialCoords.z=distFromDisc*1.5;radialCoords*=0.95;float speed=0.06*SPEED_SCALE;float noise1=1.0;vec3 rc=radialCoords+0.0;rc.y+=iTime*speed;noise1*=noise(rc*3.0)*0.5+0.5;rc.y-=iTime*speed;noise1*=noise(rc*6.0)*0.5+0.5;rc.y+=iTime*speed;noise1*=noise(rc*12.0)*0.5+0.5;rc.y-=iTime*speed;noise1*=noise(rc*24.0)*0.5+0.5;rc.y+=iTime*speed;float noise2=2.0;rc=radialCoords+30.0;noise2*=noise(rc*3.0)*0.5+0.5;rc.y+=iTime*speed;noise2*=noise(rc*6.0)*0.5+0.5;rc.y-=iTime*speed;noise2*=noise(rc*12.0)*0.5+0.5;rc.y+=iTime*speed;noise2*=noise(rc*24.0)*0.5+0.5;rc.y-=iTime*speed;noise2*=noise(rc*48.0)*0.5+0.5;rc.y+=iTime*speed;noise2*=noise(rc*92.0)*0.5+0.5;rc.y-=iTime*speed;dustColor*=noise1*0.998+0.002;coverage*=noise2;radialCoords.y+=iTime*speed*0.5;dustColor*=pow(textureLod(iChannel1,radialCoords.yx*vec2(0.15,0.27),2.0).rgb,vec3(2.0))*4.0;coverage=saturate(coverage*1200.0/float(ITERATIONS));dustColor=max(vec3(0.0),dustColor);coverage*=pcurve(radialGradient,4.0,0.9);color=(1.0-alpha)*dustColor*coverage*brightnessRatio+color;alpha=(1.0-alpha)*coverage+alpha;}vec3 rotate(vec3 p,float x,float y,float z){mat3 matx=mat3(1.0,0.0,0.0,0.0,cos(x),sin(x),0.0,-sin(x),cos(x));mat3 maty=mat3(cos(y),0.0,-sin(y),0.0,1.0,0.0,sin(y),0.0,cos(y));mat3 matz=mat3(cos(z),sin(z),0.0,-sin(z),cos(z),0.0,0.0,0.0,1.0);p=matx*p;p=matz*p;p=maty*p;return p;}void RotateCamera(inout vec3 eyevec,inout vec3 eyepos){float mousePosY=iMouse.y/iResolution.y;float mousePosX=iMouse.x/iResolution.x;vec3 angle=vec3(mousePosY*.5+0.05,1.0+mousePosX*1.0,-0.45);eyevec=rotate(eyevec,angle.x,angle.y,angle.z);eyepos=rotate(eyepos,angle.x,angle.y,angle.z);}void WarpSpace(inout vec3 eyevec,inout vec3 raypos){vec3 origin=ORIGIN;float singularityDist=distance(raypos,origin);float warpFactor=1.0/(pow(singularityDist,2.0)+0.000001);vec3 singularityVector=normalize(origin-raypos);float warpAmount=5.0;eyevec=normalize(eyevec+singularityVector*warpFactor*warpAmount/float(ITERATIONS));}void mainImage(out vec4 fragColor,in vec2 fragCoord){vec2 uv=fragCoord.xy/iResolution.xy;float aspect=iResolution.x/iResolution.y;vec2 uveye=uv;\n#ifdef TEMPORAL_AA\n#if BRIGHTNESS_CORRECTION == 1\nuveye.x+=rand(vec2(sin(iTime*1.0)))/iResolution.x;uveye.y+=rand(vec2(1.0+sin(iTime*1.0)))/iResolution.y;\n#else\nuveye.x+=rand(uv+sin(iTime*1.0))/iResolution.x;uveye.y+=rand(uv+1.0+sin(iTime*1.0))/iResolution.y;\n#endif\n#endif\nvec3 eyevec=normalize(vec3((uveye*2.0-1.0)*vec2(aspect,1.0),SCREEN_SCALE));vec3 eyepos=vec3(0.0,-0.0,-10.0);vec2 mousepos=iMouse.xy/iResolution.xy;if(mousepos.x==0.0){mousepos.x=0.5;}eyepos.x+=mousepos.x*3.0-1.5;const float far=15.0;RotateCamera(eyevec,eyepos);vec3 color=vec3(0.0,0.0,0.0);float dither=1.0;\n#ifdef TEMPORAL_AA\n#if BRIGHTNESS_CORRECTION != 1\ndither=rand(uv+sin(iTime*1.0))*2.0;\n#endif\n#else\n#if BRIGHTNESS_CORRECTION == 0\ndither=rand(uv)*2.0;\n#endif\n#endif\nfloat alpha=0.0;float dt=dither*far/float(ITERATIONS);vec3 raypos=eyepos+eyevec*dt;\n#if BRIGHTNESS_CORRECTION == 2\nvec3 eyevecTan=normalize(cross(eyevec,ORIGIN-eyepos));vec3 eyevecRad=normalize(cross(eyevec,eyevecTan));eyevecTan=normalize(eyevec+eyevecTan*0.001);eyevecRad=normalize(eyevec+eyevecRad*0.001);vec3 rayposTan=eyepos+eyevecTan*dt;vec3 rayposRad=eyepos+eyevecRad*dt;float travelled=dt;float sa0=getSolidAngle(rayposTan-raypos,rayposRad-raypos,eyevec,travelled);\n#elif BRIGHTNESS_CORRECTION == 1\nfloat travelled=dt;float sa0=getSolidAngle(raypos,eyevec,travelled);\n#endif\nfor(int i=0;i<ITERATIONS;i++){WarpSpace(eyevec,raypos);dt=far/float(ITERATIONS);raypos+=eyevec*dt;float brightnessRatio=1.0;\n#if BRIGHTNESS_CORRECTION == 2\nWarpSpace(eyevecTan,rayposTan);WarpSpace(eyevecRad,rayposRad);rayposTan+=eyevecTan*dt;rayposRad+=eyevecRad*dt;travelled+=dt;brightnessRatio=getSolidAngle(rayposTan-raypos,rayposRad-raypos,eyevec,travelled)/sa0;\n#elif BRIGHTNESS_CORRECTION == 1\ntravelled+=dt;brightnessRatio=getSolidAngle(raypos,eyevec,travelled)/sa0;\n#endif\nGasDisc(color,alpha,raypos,brightnessRatio);Haze(color,raypos,alpha,brightnessRatio);}color*=0.0001;\n#ifdef TEMPORAL_AA\nvec3 previous=texture(iChannel2,uv).rgb;if(all(lessThan(color,vec3(HALF_MAX)))){float blendWeight=0.9;color=mix(color,previous,blendWeight);}else{color=previous;}\n#endif\nfragColor=vec4(saturate(color),1.0);}void main(){vec4 fragColor;mainImage(fragColor,vFragCoord);gl_FragColor=fragColor;}";
+var bufferAfrag = "uniform float iTime;uniform vec2 iMouse;uniform vec2 iResolution;uniform sampler2D iChannel0;uniform sampler2D iChannel1;uniform sampler2D iChannel2;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;varying vec2 vUv;varying vec2 vFragCoord;/*Main render.Temporal AA for a smooth image. Temporal accumulation is disabled while moving the view to prevent ghosting.*/\n#define FLOAT_MAX 3.402823466e38\n#define HALF_MAX 6.5504e4\n#define PI 3.14159265359\n#define ITERATIONS 150\n#define ORIGIN vec3(0.0)\n#define SCREEN_SCALE 5.0\n#define SPEED_SCALE 1.0\n#define BRIGHTNESS_CORRECTION 2\nfloat getSolidAngle(vec3 dPdx,vec3 dPdy,vec3 rd,float len){float A_rr=abs(dot(cross(dPdx,dPdy),rd))/(len*len);return A_rr;}float getSolidAngle(vec3 ro,vec3 rd,float len){return getSolidAngle(dFdx(ro),dFdy(ro),rd,len);}const vec3 MainColor=vec3(1.0);float noise(in vec3 x){vec3 p=floor(x);vec3 f=fract(x);f=f*f*(3.0-2.0*f);vec2 uv=(p.xy+vec2(37.0,17.0)*p.z)+f.xy;vec2 rg=textureLod(iChannel0,(uv+0.5)/256.0,0.0).yx;return-1.0+2.0*mix(rg.x,rg.y,f.z);}float saturate(float x){return clamp(x,0.0,1.0);}vec3 saturate(vec3 x){return clamp(x,vec3(0.0),vec3(1.0));}float rand(vec2 coord){return saturate(fract(sin(dot(coord,vec2(12.9898,78.223)))*43758.5453));}float pcurve(float x,float a,float b){float k=pow(a+b,a+b)/(pow(a,a)*pow(b,b));return k*pow(x,a)*pow(1.0-x,b);}const float pi=3.14159265;float atan2(float y,float x){if(x>0.0){return atan(y/x);}else if(x==0.0){if(y>0.0){return pi/2.0;}else if(y<0.0){return-(pi/2.0);}else{return 0.0;}}else{if(y>=0.0){return atan(y/x)+pi;}else{return atan(y/x)-pi;}}}float sdTorus(vec3 p,vec2 t){vec2 q=vec2(length(p.xz)-t.x,p.y);return length(q)-t.y;}float sdSphere(vec3 p,float r){return length(p)-r;}void Haze(inout vec3 color,vec3 pos,float alpha,float brightnessRatio){vec2 t=vec2(1.0,0.01);float torusDist=length(sdTorus(pos+vec3(0.0,-0.05,0.0),t));float bloomDisc=1.0/(pow(torusDist,2.0)+0.001);vec3 col=MainColor;bloomDisc*=length(pos)<0.5 ? 0.0 : 1.0;color+=col*bloomDisc*(2.9/float(ITERATIONS))*(1.0-alpha*1.0)*brightnessRatio;}void GasDisc(inout vec3 color,inout float alpha,vec3 pos,float brightnessRatio){float discRadius=3.2;float discWidth=5.3;float discInner=discRadius-discWidth*0.5;float discOuter=discRadius+discWidth*0.5;vec3 origin=vec3(0.0,0.0,0.0);float mouseZ=iMouse.y/iResolution.y;vec3 discNormal=normalize(vec3(0.0,1.0,0.0));float discThickness=0.1;float distFromCenter=distance(pos,origin);float distFromDisc=dot(discNormal,pos-origin);float radialGradient=1.0-saturate((distFromCenter-discInner)/discWidth*0.5);float coverage=pcurve(radialGradient,4.0,0.9);discThickness*=radialGradient;coverage*=saturate(1.0-abs(distFromDisc)/discThickness);vec3 dustColorLit=MainColor;vec3 dustColorDark=vec3(0.0,0.0,0.0);float dustGlow=1.0/(pow(1.0-radialGradient,2.0)*290.0+0.002);vec3 dustColor=dustColorLit*dustGlow*8.2;coverage=saturate(coverage*0.7);float fade=pow((abs(distFromCenter-discInner)+0.4),4.0)*0.04;float bloomFactor=1.0/(pow(distFromDisc,2.0)*40.0+fade+0.00002);vec3 b=dustColorLit*pow(bloomFactor,1.5);b*=mix(vec3(1.7,1.1,1.0),vec3(0.5,0.6,1.0),vec3(pow(radialGradient,2.0)));b*=mix(vec3(1.7,0.5,0.1),vec3(1.0),vec3(pow(radialGradient,0.5)));dustColor=mix(dustColor,b*150.0,saturate(1.0-coverage*1.0));coverage=saturate(coverage+bloomFactor*bloomFactor*0.1);if(coverage<0.01){return;}vec3 radialCoords;radialCoords.x=distFromCenter*1.5+0.55;radialCoords.y=atan2(-pos.x,-pos.z)*1.5;radialCoords.z=distFromDisc*1.5;radialCoords*=0.95;float speed=0.06*SPEED_SCALE;float noise1=1.0;vec3 rc=radialCoords+0.0;rc.y+=iTime*speed;noise1*=noise(rc*3.0)*0.5+0.5;rc.y-=iTime*speed;noise1*=noise(rc*6.0)*0.5+0.5;rc.y+=iTime*speed;noise1*=noise(rc*12.0)*0.5+0.5;rc.y-=iTime*speed;noise1*=noise(rc*24.0)*0.5+0.5;rc.y+=iTime*speed;float noise2=2.0;rc=radialCoords+30.0;noise2*=noise(rc*3.0)*0.5+0.5;rc.y+=iTime*speed;noise2*=noise(rc*6.0)*0.5+0.5;rc.y-=iTime*speed;noise2*=noise(rc*12.0)*0.5+0.5;rc.y+=iTime*speed;noise2*=noise(rc*24.0)*0.5+0.5;rc.y-=iTime*speed;noise2*=noise(rc*48.0)*0.5+0.5;rc.y+=iTime*speed;noise2*=noise(rc*92.0)*0.5+0.5;rc.y-=iTime*speed;dustColor*=noise1*0.998+0.002;coverage*=noise2;radialCoords.y+=iTime*speed*0.5;dustColor*=pow(textureLod(iChannel1,radialCoords.yx*vec2(0.15,0.27),2.0).rgb,vec3(2.0))*4.0;coverage=saturate(coverage*1200.0/float(ITERATIONS));dustColor=max(vec3(0.0),dustColor);coverage*=pcurve(radialGradient,4.0,0.9);color=(1.0-alpha)*dustColor*coverage*brightnessRatio+color;alpha=(1.0-alpha)*coverage+alpha;}vec3 rotate(vec3 p,float x,float y,float z){mat3 matx=mat3(1.0,0.0,0.0,0.0,cos(x),sin(x),0.0,-sin(x),cos(x));mat3 maty=mat3(cos(y),0.0,-sin(y),0.0,1.0,0.0,sin(y),0.0,cos(y));mat3 matz=mat3(cos(z),sin(z),0.0,-sin(z),cos(z),0.0,0.0,0.0,1.0);p=matx*p;p=matz*p;p=maty*p;return p;}void RotateCamera(inout vec3 eyevec,inout vec3 eyepos){float mousePosY=iMouse.y/iResolution.y;float mousePosX=iMouse.x/iResolution.x;vec3 angle=vec3(mousePosY*.5+0.05,1.0+mousePosX*1.0,-0.45);eyevec=rotate(eyevec,angle.x,angle.y,angle.z);eyepos=rotate(eyepos,angle.x,angle.y,angle.z);}void WarpSpace(inout vec3 eyevec,inout vec3 raypos){vec3 origin=ORIGIN;float singularityDist=distance(raypos,origin);float warpFactor=1.0/(pow(singularityDist,2.0)+0.000001);vec3 singularityVector=normalize(origin-raypos);float warpAmount=5.0;eyevec=normalize(eyevec+singularityVector*warpFactor*warpAmount/float(ITERATIONS));}void mainImage(out vec4 fragColor,in vec2 fragCoord){vec2 uv=fragCoord.xy/iResolution.xy;float aspect=iResolution.x/iResolution.y;vec2 uveye=uv;\n#ifdef TEMPORAL_AA\n#if BRIGHTNESS_CORRECTION == 1\nuveye.x+=rand(vec2(sin(iTime*1.0)))/iResolution.x;uveye.y+=rand(vec2(1.0+sin(iTime*1.0)))/iResolution.y;\n#else\nuveye.x+=rand(uv+sin(iTime*1.0))/iResolution.x;uveye.y+=rand(uv+1.0+sin(iTime*1.0))/iResolution.y;\n#endif\n#endif\nvec3 eyevec=normalize(vec3((uveye*2.0-1.0)*vec2(aspect,1.0),SCREEN_SCALE));eyevec=(cameraWorldMatrix*cameraProjectionMatrixInverse*vec4(eyevec,1.0)).xyz;vec3 eyepos=cameraPosition;vec2 mousepos=iMouse.xy/iResolution.xy;if(mousepos.x==0.0){mousepos.x=0.5;}eyepos.x+=mousepos.x*3.0-1.5;const float far=15.0;RotateCamera(eyevec,eyepos);vec3 color=vec3(0.0,0.0,0.0);float dither=1.0;\n#ifdef TEMPORAL_AA\n#if BRIGHTNESS_CORRECTION != 1\ndither=rand(uv+sin(iTime*1.0))*2.0;\n#endif\n#else\n#if BRIGHTNESS_CORRECTION == 0\ndither=rand(uv)*2.0;\n#endif\n#endif\nfloat alpha=0.0;float dt=dither*far/float(ITERATIONS);vec3 raypos=eyepos+eyevec*dt;\n#if BRIGHTNESS_CORRECTION == 2\nvec3 eyevecTan=normalize(cross(eyevec,ORIGIN-eyepos));vec3 eyevecRad=normalize(cross(eyevec,eyevecTan));eyevecTan=normalize(eyevec+eyevecTan*0.001);eyevecRad=normalize(eyevec+eyevecRad*0.001);vec3 rayposTan=eyepos+eyevecTan*dt;vec3 rayposRad=eyepos+eyevecRad*dt;float travelled=dt;float sa0=getSolidAngle(rayposTan-raypos,rayposRad-raypos,eyevec,travelled);\n#elif BRIGHTNESS_CORRECTION == 1\nfloat travelled=dt;float sa0=getSolidAngle(raypos,eyevec,travelled);\n#endif\nfor(int i=0;i<ITERATIONS;i++){WarpSpace(eyevec,raypos);dt=far/float(ITERATIONS);raypos+=eyevec*dt;float brightnessRatio=1.0;\n#if BRIGHTNESS_CORRECTION == 2\nWarpSpace(eyevecTan,rayposTan);WarpSpace(eyevecRad,rayposRad);rayposTan+=eyevecTan*dt;rayposRad+=eyevecRad*dt;travelled+=dt;brightnessRatio=getSolidAngle(rayposTan-raypos,rayposRad-raypos,eyevec,travelled)/sa0;\n#elif BRIGHTNESS_CORRECTION == 1\ntravelled+=dt;brightnessRatio=getSolidAngle(raypos,eyevec,travelled)/sa0;\n#endif\nGasDisc(color,alpha,raypos,brightnessRatio);Haze(color,raypos,alpha,brightnessRatio);}color*=0.0001;\n#ifdef TEMPORAL_AA\nvec3 previous=texture(iChannel2,uv).rgb;if(all(lessThan(color,vec3(HALF_MAX)))){float blendWeight=0.9;color=mix(color,previous,blendWeight);}else{color=previous;}\n#endif\nfragColor=vec4(saturate(color),1.0);}void main(){vec4 fragColor;mainImage(fragColor,vFragCoord);gl_FragColor=fragColor;}";
 
 var bufferBfrag = "uniform vec2 iResolution;uniform sampler2D iChannel0;varying vec2 vUv;varying vec2 vFragCoord;vec3 ColorFetch(vec2 coord){return texture(iChannel0,coord).rgb;}vec3 Grab1(vec2 coord,const float octave,const vec2 offset){float scale=exp2(octave);coord+=offset;coord*=scale;if(coord.x<0.0||coord.x>1.0||coord.y<0.0||coord.y>1.0){return vec3(0.0);}vec3 color=ColorFetch(coord);return color;}vec3 Grab4(vec2 coord,const float octave,const vec2 offset){float scale=exp2(octave);coord+=offset;coord*=scale;if(coord.x<0.0||coord.x>1.0||coord.y<0.0||coord.y>1.0){return vec3(0.0);}vec3 color=vec3(0.0);float weights=0.0;const int oversampling=4;for(int i=0;i<oversampling;i++){for(int j=0;j<oversampling;j++){vec2 off=(vec2(i,j)/iResolution.xy+vec2(0.0)/iResolution.xy)*scale/float(oversampling);color+=ColorFetch(coord+off);weights+=1.0;}}color/=weights;return color;}vec3 Grab8(vec2 coord,const float octave,const vec2 offset){float scale=exp2(octave);coord+=offset;coord*=scale;if(coord.x<0.0||coord.x>1.0||coord.y<0.0||coord.y>1.0){return vec3(0.0);}vec3 color=vec3(0.0);float weights=0.0;const int oversampling=8;for(int i=0;i<oversampling;i++){for(int j=0;j<oversampling;j++){vec2 off=(vec2(i,j)/iResolution.xy+vec2(0.0)/iResolution.xy)*scale/float(oversampling);color+=ColorFetch(coord+off);weights+=1.0;}}color/=weights;return color;}vec3 Grab16(vec2 coord,const float octave,const vec2 offset){float scale=exp2(octave);coord+=offset;coord*=scale;if(coord.x<0.0||coord.x>1.0||coord.y<0.0||coord.y>1.0){return vec3(0.0);}vec3 color=vec3(0.0);float weights=0.0;const int oversampling=16;for(int i=0;i<oversampling;i++){for(int j=0;j<oversampling;j++){vec2 off=(vec2(i,j)/iResolution.xy+vec2(0.0)/iResolution.xy)*scale/float(oversampling);color+=ColorFetch(coord+off);weights+=1.0;}}color/=weights;return color;}vec2 CalcOffset(float octave){vec2 offset=vec2(0.0);vec2 padding=vec2(10.0)/iResolution.xy;offset.x=-min(1.0,floor(octave/3.0))*(0.25+padding.x);offset.y=-(1.0-(1.0/exp2(octave)))-padding.y*octave;offset.y+=min(1.0,floor(octave/3.0))*0.35;return offset;}void mainImage(out vec4 fragColor,in vec2 fragCoord){vec2 uv=fragCoord.xy/iResolution.xy;vec3 color=vec3(0.0);/*Create a mipmap tree thingy with padding to prevent leaking bloomSince there's no mipmaps for the previous buffer and the reduction process has to be done in one pass,oversampling is required for a proper result*/color+=Grab1(uv,1.0,vec2(0.0,0.0));color+=Grab4(uv,2.0,vec2(CalcOffset(1.0)));color+=Grab8(uv,3.0,vec2(CalcOffset(2.0)));color+=Grab16(uv,4.0,vec2(CalcOffset(3.0)));color+=Grab16(uv,5.0,vec2(CalcOffset(4.0)));color+=Grab16(uv,6.0,vec2(CalcOffset(5.0)));color+=Grab16(uv,7.0,vec2(CalcOffset(6.0)));color+=Grab16(uv,8.0,vec2(CalcOffset(7.0)));fragColor=vec4(color,1.0);}void main(){vec4 fragColor;mainImage(fragColor,vFragCoord);gl_FragColor=fragColor;}";
 
@@ -30597,9 +30894,1530 @@ var bufferDfrag = "uniform vec2 iResolution;uniform sampler2D iChannel0;varying 
 
 var imagefrag = "uniform vec2 iResolution;uniform sampler2D iChannel0;uniform sampler2D iChannel1;uniform sampler2D iChannel2;uniform sampler2D iChannel3;varying vec2 vUv;varying vec2 vFragCoord;vec3 saturate(vec3 x){return clamp(x,vec3(0.0),vec3(1.0));}vec4 cubic(float x){float x2=x*x;float x3=x2*x;vec4 w;w.x=-x3+3.0*x2-3.0*x+1.0;w.y=3.0*x3-6.0*x2+4.0;w.z=-3.0*x3+3.0*x2+3.0*x+1.0;w.w=x3;return w/6.0;}vec4 BicubicTexture(in sampler2D tex,in vec2 coord){vec2 resolution=iResolution.xy;coord*=resolution;float fx=fract(coord.x);float fy=fract(coord.y);coord.x-=fx;coord.y-=fy;fx-=0.5;fy-=0.5;vec4 xcubic=cubic(fx);vec4 ycubic=cubic(fy);vec4 c=vec4(coord.x-0.5,coord.x+1.5,coord.y-0.5,coord.y+1.5);vec4 s=vec4(xcubic.x+xcubic.y,xcubic.z+xcubic.w,ycubic.x+ycubic.y,ycubic.z+ycubic.w);vec4 offset=c+vec4(xcubic.y,xcubic.w,ycubic.y,ycubic.w)/s;vec4 sample0=texture(tex,vec2(offset.x,offset.z)/resolution);vec4 sample1=texture(tex,vec2(offset.y,offset.z)/resolution);vec4 sample2=texture(tex,vec2(offset.x,offset.w)/resolution);vec4 sample3=texture(tex,vec2(offset.y,offset.w)/resolution);float sx=s.x/(s.x+s.y);float sy=s.z/(s.z+s.w);return mix(mix(sample3,sample2,sx),mix(sample1,sample0,sx),sy);}vec3 ColorFetch(vec2 coord){return texture(iChannel0,coord).rgb;}vec3 BloomFetch(vec2 coord){return BicubicTexture(iChannel3,coord).rgb;}vec3 Grab(vec2 coord,const float octave,const vec2 offset){float scale=exp2(octave);coord/=scale;coord-=offset;return BloomFetch(coord);}vec2 CalcOffset(float octave){vec2 offset=vec2(0.0);vec2 padding=vec2(10.0)/iResolution.xy;offset.x=-min(1.0,floor(octave/3.0))*(0.25+padding.x);offset.y=-(1.0-(1.0/exp2(octave)))-padding.y*octave;offset.y+=min(1.0,floor(octave/3.0))*0.35;return offset;}vec3 GetBloom(vec2 coord){vec3 bloom=vec3(0.0);bloom+=Grab(coord,1.0,vec2(CalcOffset(0.0)))*1.0;bloom+=Grab(coord,2.0,vec2(CalcOffset(1.0)))*1.5;bloom+=Grab(coord,3.0,vec2(CalcOffset(2.0)))*1.0;bloom+=Grab(coord,4.0,vec2(CalcOffset(3.0)))*1.5;bloom+=Grab(coord,5.0,vec2(CalcOffset(4.0)))*1.8;bloom+=Grab(coord,6.0,vec2(CalcOffset(5.0)))*1.0;bloom+=Grab(coord,7.0,vec2(CalcOffset(6.0)))*1.0;bloom+=Grab(coord,8.0,vec2(CalcOffset(7.0)))*1.0;return bloom;}void mainImage(out vec4 fragColor,in vec2 fragCoord){vec2 uv=fragCoord.xy/iResolution.xy;vec3 color=ColorFetch(uv);color+=GetBloom(uv)*0.08;color*=200.0;color=pow(color,vec3(1.5));color=color/(1.0+color);color=pow(color,vec3(1.0/1.5));color=mix(color,color*color*(3.0-2.0*color),vec3(1.0));color=pow(color,vec3(1.3,1.20,1.0));color=pow(color,vec3(0.7/2.2));fragColor=vec4(color,1.0);}void main(){vec4 fragColor;mainImage(fragColor,vFragCoord);gl_FragColor=fragColor;}";
 
+// OrbitControls performs orbiting, dollying (zooming), and panning.
+// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
+//
+//    Orbit - left mouse / touch: one-finger move
+//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
+//    Pan - right mouse, or left mouse + ctrl/meta/shiftKey, or arrow keys / touch: two-finger move
+
+const _changeEvent = { type: 'change' };
+const _startEvent = { type: 'start' };
+const _endEvent = { type: 'end' };
+const _ray = new Ray();
+const _plane = new Plane();
+const TILT_LIMIT = Math.cos( 70 * MathUtils.DEG2RAD );
+
+class OrbitControls extends EventDispatcher {
+
+	constructor( object, domElement ) {
+
+		super();
+
+		this.object = object;
+		this.domElement = domElement;
+		this.domElement.style.touchAction = 'none'; // disable touch scroll
+
+		// Set to false to disable this control
+		this.enabled = true;
+
+		// "target" sets the location of focus, where the object orbits around
+		this.target = new Vector3();
+
+		// Sets the 3D cursor (similar to Blender), from which the maxTargetRadius takes effect
+		this.cursor = new Vector3();
+
+		// How far you can dolly in and out ( PerspectiveCamera only )
+		this.minDistance = 0;
+		this.maxDistance = Infinity;
+
+		// How far you can zoom in and out ( OrthographicCamera only )
+		this.minZoom = 0;
+		this.maxZoom = Infinity;
+
+		// Limit camera target within a spherical area around the cursor
+		this.minTargetRadius = 0;
+		this.maxTargetRadius = Infinity;
+
+		// How far you can orbit vertically, upper and lower limits.
+		// Range is 0 to Math.PI radians.
+		this.minPolarAngle = 0; // radians
+		this.maxPolarAngle = Math.PI; // radians
+
+		// How far you can orbit horizontally, upper and lower limits.
+		// If set, the interval [ min, max ] must be a sub-interval of [ - 2 PI, 2 PI ], with ( max - min < 2 PI )
+		this.minAzimuthAngle = - Infinity; // radians
+		this.maxAzimuthAngle = Infinity; // radians
+
+		// Set to true to enable damping (inertia)
+		// If damping is enabled, you must call controls.update() in your animation loop
+		this.enableDamping = false;
+		this.dampingFactor = 0.05;
+
+		// This option actually enables dollying in and out; left as "zoom" for backwards compatibility.
+		// Set to false to disable zooming
+		this.enableZoom = true;
+		this.zoomSpeed = 1.0;
+
+		// Set to false to disable rotating
+		this.enableRotate = true;
+		this.rotateSpeed = 1.0;
+
+		// Set to false to disable panning
+		this.enablePan = true;
+		this.panSpeed = 1.0;
+		this.screenSpacePanning = true; // if false, pan orthogonal to world-space direction camera.up
+		this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+		this.zoomToCursor = false;
+
+		// Set to true to automatically rotate around the target
+		// If auto-rotate is enabled, you must call controls.update() in your animation loop
+		this.autoRotate = false;
+		this.autoRotateSpeed = 2.0; // 30 seconds per orbit when fps is 60
+
+		// The four arrow keys
+		this.keys = { LEFT: 'ArrowLeft', UP: 'ArrowUp', RIGHT: 'ArrowRight', BOTTOM: 'ArrowDown' };
+
+		// Mouse buttons
+		this.mouseButtons = { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
+
+		// Touch fingers
+		this.touches = { ONE: TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN };
+
+		// for reset
+		this.target0 = this.target.clone();
+		this.position0 = this.object.position.clone();
+		this.zoom0 = this.object.zoom;
+
+		// the target DOM element for key events
+		this._domElementKeyEvents = null;
+
+		//
+		// public methods
+		//
+
+		this.getPolarAngle = function () {
+
+			return spherical.phi;
+
+		};
+
+		this.getAzimuthalAngle = function () {
+
+			return spherical.theta;
+
+		};
+
+		this.getDistance = function () {
+
+			return this.object.position.distanceTo( this.target );
+
+		};
+
+		this.listenToKeyEvents = function ( domElement ) {
+
+			domElement.addEventListener( 'keydown', onKeyDown );
+			this._domElementKeyEvents = domElement;
+
+		};
+
+		this.stopListenToKeyEvents = function () {
+
+			this._domElementKeyEvents.removeEventListener( 'keydown', onKeyDown );
+			this._domElementKeyEvents = null;
+
+		};
+
+		this.saveState = function () {
+
+			scope.target0.copy( scope.target );
+			scope.position0.copy( scope.object.position );
+			scope.zoom0 = scope.object.zoom;
+
+		};
+
+		this.reset = function () {
+
+			scope.target.copy( scope.target0 );
+			scope.object.position.copy( scope.position0 );
+			scope.object.zoom = scope.zoom0;
+
+			scope.object.updateProjectionMatrix();
+			scope.dispatchEvent( _changeEvent );
+
+			scope.update();
+
+			state = STATE.NONE;
+
+		};
+
+		// this method is exposed, but perhaps it would be better if we can make it private...
+		this.update = function () {
+
+			const offset = new Vector3();
+
+			// so camera.up is the orbit axis
+			const quat = new Quaternion().setFromUnitVectors( object.up, new Vector3( 0, 1, 0 ) );
+			const quatInverse = quat.clone().invert();
+
+			const lastPosition = new Vector3();
+			const lastQuaternion = new Quaternion();
+			const lastTargetPosition = new Vector3();
+
+			const twoPI = 2 * Math.PI;
+
+			return function update( deltaTime = null ) {
+
+				const position = scope.object.position;
+
+				offset.copy( position ).sub( scope.target );
+
+				// rotate offset to "y-axis-is-up" space
+				offset.applyQuaternion( quat );
+
+				// angle from z-axis around y-axis
+				spherical.setFromVector3( offset );
+
+				if ( scope.autoRotate && state === STATE.NONE ) {
+
+					rotateLeft( getAutoRotationAngle( deltaTime ) );
+
+				}
+
+				if ( scope.enableDamping ) {
+
+					spherical.theta += sphericalDelta.theta * scope.dampingFactor;
+					spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+
+				} else {
+
+					spherical.theta += sphericalDelta.theta;
+					spherical.phi += sphericalDelta.phi;
+
+				}
+
+				// restrict theta to be between desired limits
+
+				let min = scope.minAzimuthAngle;
+				let max = scope.maxAzimuthAngle;
+
+				if ( isFinite( min ) && isFinite( max ) ) {
+
+					if ( min < - Math.PI ) min += twoPI; else if ( min > Math.PI ) min -= twoPI;
+
+					if ( max < - Math.PI ) max += twoPI; else if ( max > Math.PI ) max -= twoPI;
+
+					if ( min <= max ) {
+
+						spherical.theta = Math.max( min, Math.min( max, spherical.theta ) );
+
+					} else {
+
+						spherical.theta = ( spherical.theta > ( min + max ) / 2 ) ?
+							Math.max( min, spherical.theta ) :
+							Math.min( max, spherical.theta );
+
+					}
+
+				}
+
+				// restrict phi to be between desired limits
+				spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
+
+				spherical.makeSafe();
+
+
+				// move target to panned location
+
+				if ( scope.enableDamping === true ) {
+
+					scope.target.addScaledVector( panOffset, scope.dampingFactor );
+
+				} else {
+
+					scope.target.add( panOffset );
+
+				}
+
+				// Limit the target distance from the cursor to create a sphere around the center of interest
+				scope.target.sub( scope.cursor );
+				scope.target.clampLength( scope.minTargetRadius, scope.maxTargetRadius );
+				scope.target.add( scope.cursor );
+
+				let zoomChanged = false;
+				// adjust the camera position based on zoom only if we're not zooming to the cursor or if it's an ortho camera
+				// we adjust zoom later in these cases
+				if ( scope.zoomToCursor && performCursorZoom || scope.object.isOrthographicCamera ) {
+
+					spherical.radius = clampDistance( spherical.radius );
+
+				} else {
+
+					const prevRadius = spherical.radius;
+					spherical.radius = clampDistance( spherical.radius * scale );
+					zoomChanged = prevRadius != spherical.radius;
+
+				}
+
+				offset.setFromSpherical( spherical );
+
+				// rotate offset back to "camera-up-vector-is-up" space
+				offset.applyQuaternion( quatInverse );
+
+				position.copy( scope.target ).add( offset );
+
+				scope.object.lookAt( scope.target );
+
+				if ( scope.enableDamping === true ) {
+
+					sphericalDelta.theta *= ( 1 - scope.dampingFactor );
+					sphericalDelta.phi *= ( 1 - scope.dampingFactor );
+
+					panOffset.multiplyScalar( 1 - scope.dampingFactor );
+
+				} else {
+
+					sphericalDelta.set( 0, 0, 0 );
+
+					panOffset.set( 0, 0, 0 );
+
+				}
+
+				// adjust camera position
+				if ( scope.zoomToCursor && performCursorZoom ) {
+
+					let newRadius = null;
+					if ( scope.object.isPerspectiveCamera ) {
+
+						// move the camera down the pointer ray
+						// this method avoids floating point error
+						const prevRadius = offset.length();
+						newRadius = clampDistance( prevRadius * scale );
+
+						const radiusDelta = prevRadius - newRadius;
+						scope.object.position.addScaledVector( dollyDirection, radiusDelta );
+						scope.object.updateMatrixWorld();
+
+						zoomChanged = !! radiusDelta;
+
+					} else if ( scope.object.isOrthographicCamera ) {
+
+						// adjust the ortho camera position based on zoom changes
+						const mouseBefore = new Vector3( mouse.x, mouse.y, 0 );
+						mouseBefore.unproject( scope.object );
+
+						const prevZoom = scope.object.zoom;
+						scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / scale ) );
+						scope.object.updateProjectionMatrix();
+
+						zoomChanged = prevZoom !== scope.object.zoom;
+
+						const mouseAfter = new Vector3( mouse.x, mouse.y, 0 );
+						mouseAfter.unproject( scope.object );
+
+						scope.object.position.sub( mouseAfter ).add( mouseBefore );
+						scope.object.updateMatrixWorld();
+
+						newRadius = offset.length();
+
+					} else {
+
+						console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - zoom to cursor disabled.' );
+						scope.zoomToCursor = false;
+
+					}
+
+					// handle the placement of the target
+					if ( newRadius !== null ) {
+
+						if ( this.screenSpacePanning ) {
+
+							// position the orbit target in front of the new camera position
+							scope.target.set( 0, 0, - 1 )
+								.transformDirection( scope.object.matrix )
+								.multiplyScalar( newRadius )
+								.add( scope.object.position );
+
+						} else {
+
+							// get the ray and translation plane to compute target
+							_ray.origin.copy( scope.object.position );
+							_ray.direction.set( 0, 0, - 1 ).transformDirection( scope.object.matrix );
+
+							// if the camera is 20 degrees above the horizon then don't adjust the focus target to avoid
+							// extremely large values
+							if ( Math.abs( scope.object.up.dot( _ray.direction ) ) < TILT_LIMIT ) {
+
+								object.lookAt( scope.target );
+
+							} else {
+
+								_plane.setFromNormalAndCoplanarPoint( scope.object.up, scope.target );
+								_ray.intersectPlane( _plane, scope.target );
+
+							}
+
+						}
+
+					}
+
+				} else if ( scope.object.isOrthographicCamera ) {
+
+					const prevZoom = scope.object.zoom;
+					scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / scale ) );
+
+					if ( prevZoom !== scope.object.zoom ) {
+
+						scope.object.updateProjectionMatrix();
+						zoomChanged = true;
+
+					}
+
+				}
+
+				scale = 1;
+				performCursorZoom = false;
+
+				// update condition is:
+				// min(camera displacement, camera rotation in radians)^2 > EPS
+				// using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+				if ( zoomChanged ||
+					lastPosition.distanceToSquared( scope.object.position ) > EPS ||
+					8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ||
+					lastTargetPosition.distanceToSquared( scope.target ) > EPS ) {
+
+					scope.dispatchEvent( _changeEvent );
+
+					lastPosition.copy( scope.object.position );
+					lastQuaternion.copy( scope.object.quaternion );
+					lastTargetPosition.copy( scope.target );
+
+					return true;
+
+				}
+
+				return false;
+
+			};
+
+		}();
+
+		this.dispose = function () {
+
+			scope.domElement.removeEventListener( 'contextmenu', onContextMenu );
+
+			scope.domElement.removeEventListener( 'pointerdown', onPointerDown );
+			scope.domElement.removeEventListener( 'pointercancel', onPointerUp );
+			scope.domElement.removeEventListener( 'wheel', onMouseWheel );
+
+			scope.domElement.removeEventListener( 'pointermove', onPointerMove );
+			scope.domElement.removeEventListener( 'pointerup', onPointerUp );
+
+			const document = scope.domElement.getRootNode(); // offscreen canvas compatibility
+
+			document.removeEventListener( 'keydown', interceptControlDown, { capture: true } );
+
+			if ( scope._domElementKeyEvents !== null ) {
+
+				scope._domElementKeyEvents.removeEventListener( 'keydown', onKeyDown );
+				scope._domElementKeyEvents = null;
+
+			}
+
+			//scope.dispatchEvent( { type: 'dispose' } ); // should this be added here?
+
+		};
+
+		//
+		// internals
+		//
+
+		const scope = this;
+
+		const STATE = {
+			NONE: - 1,
+			ROTATE: 0,
+			DOLLY: 1,
+			PAN: 2,
+			TOUCH_ROTATE: 3,
+			TOUCH_PAN: 4,
+			TOUCH_DOLLY_PAN: 5,
+			TOUCH_DOLLY_ROTATE: 6
+		};
+
+		let state = STATE.NONE;
+
+		const EPS = 0.000001;
+
+		// current position in spherical coordinates
+		const spherical = new Spherical();
+		const sphericalDelta = new Spherical();
+
+		let scale = 1;
+		const panOffset = new Vector3();
+
+		const rotateStart = new Vector2();
+		const rotateEnd = new Vector2();
+		const rotateDelta = new Vector2();
+
+		const panStart = new Vector2();
+		const panEnd = new Vector2();
+		const panDelta = new Vector2();
+
+		const dollyStart = new Vector2();
+		const dollyEnd = new Vector2();
+		const dollyDelta = new Vector2();
+
+		const dollyDirection = new Vector3();
+		const mouse = new Vector2();
+		let performCursorZoom = false;
+
+		const pointers = [];
+		const pointerPositions = {};
+
+		let controlActive = false;
+
+		function getAutoRotationAngle( deltaTime ) {
+
+			if ( deltaTime !== null ) {
+
+				return ( 2 * Math.PI / 60 * scope.autoRotateSpeed ) * deltaTime;
+
+			} else {
+
+				return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+
+			}
+
+		}
+
+		function getZoomScale( delta ) {
+
+			const normalizedDelta = Math.abs( delta * 0.01 );
+			return Math.pow( 0.95, scope.zoomSpeed * normalizedDelta );
+
+		}
+
+		function rotateLeft( angle ) {
+
+			sphericalDelta.theta -= angle;
+
+		}
+
+		function rotateUp( angle ) {
+
+			sphericalDelta.phi -= angle;
+
+		}
+
+		const panLeft = function () {
+
+			const v = new Vector3();
+
+			return function panLeft( distance, objectMatrix ) {
+
+				v.setFromMatrixColumn( objectMatrix, 0 ); // get X column of objectMatrix
+				v.multiplyScalar( - distance );
+
+				panOffset.add( v );
+
+			};
+
+		}();
+
+		const panUp = function () {
+
+			const v = new Vector3();
+
+			return function panUp( distance, objectMatrix ) {
+
+				if ( scope.screenSpacePanning === true ) {
+
+					v.setFromMatrixColumn( objectMatrix, 1 );
+
+				} else {
+
+					v.setFromMatrixColumn( objectMatrix, 0 );
+					v.crossVectors( scope.object.up, v );
+
+				}
+
+				v.multiplyScalar( distance );
+
+				panOffset.add( v );
+
+			};
+
+		}();
+
+		// deltaX and deltaY are in pixels; right and down are positive
+		const pan = function () {
+
+			const offset = new Vector3();
+
+			return function pan( deltaX, deltaY ) {
+
+				const element = scope.domElement;
+
+				if ( scope.object.isPerspectiveCamera ) {
+
+					// perspective
+					const position = scope.object.position;
+					offset.copy( position ).sub( scope.target );
+					let targetDistance = offset.length();
+
+					// half of the fov is center to top of screen
+					targetDistance *= Math.tan( ( scope.object.fov / 2 ) * Math.PI / 180.0 );
+
+					// we use only clientHeight here so aspect ratio does not distort speed
+					panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
+					panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
+
+				} else if ( scope.object.isOrthographicCamera ) {
+
+					// orthographic
+					panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
+					panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
+
+				} else {
+
+					// camera neither orthographic nor perspective
+					console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.' );
+					scope.enablePan = false;
+
+				}
+
+			};
+
+		}();
+
+		function dollyOut( dollyScale ) {
+
+			if ( scope.object.isPerspectiveCamera || scope.object.isOrthographicCamera ) {
+
+				scale /= dollyScale;
+
+			} else {
+
+				console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+				scope.enableZoom = false;
+
+			}
+
+		}
+
+		function dollyIn( dollyScale ) {
+
+			if ( scope.object.isPerspectiveCamera || scope.object.isOrthographicCamera ) {
+
+				scale *= dollyScale;
+
+			} else {
+
+				console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+				scope.enableZoom = false;
+
+			}
+
+		}
+
+		function updateZoomParameters( x, y ) {
+
+			if ( ! scope.zoomToCursor ) {
+
+				return;
+
+			}
+
+			performCursorZoom = true;
+
+			const rect = scope.domElement.getBoundingClientRect();
+			const dx = x - rect.left;
+			const dy = y - rect.top;
+			const w = rect.width;
+			const h = rect.height;
+
+			mouse.x = ( dx / w ) * 2 - 1;
+			mouse.y = - ( dy / h ) * 2 + 1;
+
+			dollyDirection.set( mouse.x, mouse.y, 1 ).unproject( scope.object ).sub( scope.object.position ).normalize();
+
+		}
+
+		function clampDistance( dist ) {
+
+			return Math.max( scope.minDistance, Math.min( scope.maxDistance, dist ) );
+
+		}
+
+		//
+		// event callbacks - update the object state
+		//
+
+		function handleMouseDownRotate( event ) {
+
+			rotateStart.set( event.clientX, event.clientY );
+
+		}
+
+		function handleMouseDownDolly( event ) {
+
+			updateZoomParameters( event.clientX, event.clientX );
+			dollyStart.set( event.clientX, event.clientY );
+
+		}
+
+		function handleMouseDownPan( event ) {
+
+			panStart.set( event.clientX, event.clientY );
+
+		}
+
+		function handleMouseMoveRotate( event ) {
+
+			rotateEnd.set( event.clientX, event.clientY );
+
+			rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+			const element = scope.domElement;
+
+			rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+			rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+			rotateStart.copy( rotateEnd );
+
+			scope.update();
+
+		}
+
+		function handleMouseMoveDolly( event ) {
+
+			dollyEnd.set( event.clientX, event.clientY );
+
+			dollyDelta.subVectors( dollyEnd, dollyStart );
+
+			if ( dollyDelta.y > 0 ) {
+
+				dollyOut( getZoomScale( dollyDelta.y ) );
+
+			} else if ( dollyDelta.y < 0 ) {
+
+				dollyIn( getZoomScale( dollyDelta.y ) );
+
+			}
+
+			dollyStart.copy( dollyEnd );
+
+			scope.update();
+
+		}
+
+		function handleMouseMovePan( event ) {
+
+			panEnd.set( event.clientX, event.clientY );
+
+			panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+			pan( panDelta.x, panDelta.y );
+
+			panStart.copy( panEnd );
+
+			scope.update();
+
+		}
+
+		function handleMouseWheel( event ) {
+
+			updateZoomParameters( event.clientX, event.clientY );
+
+			if ( event.deltaY < 0 ) {
+
+				dollyIn( getZoomScale( event.deltaY ) );
+
+			} else if ( event.deltaY > 0 ) {
+
+				dollyOut( getZoomScale( event.deltaY ) );
+
+			}
+
+			scope.update();
+
+		}
+
+		function handleKeyDown( event ) {
+
+			let needsUpdate = false;
+
+			switch ( event.code ) {
+
+				case scope.keys.UP:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						rotateUp( 2 * Math.PI * scope.rotateSpeed / scope.domElement.clientHeight );
+
+					} else {
+
+						pan( 0, scope.keyPanSpeed );
+
+					}
+
+					needsUpdate = true;
+					break;
+
+				case scope.keys.BOTTOM:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						rotateUp( - 2 * Math.PI * scope.rotateSpeed / scope.domElement.clientHeight );
+
+					} else {
+
+						pan( 0, - scope.keyPanSpeed );
+
+					}
+
+					needsUpdate = true;
+					break;
+
+				case scope.keys.LEFT:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						rotateLeft( 2 * Math.PI * scope.rotateSpeed / scope.domElement.clientHeight );
+
+					} else {
+
+						pan( scope.keyPanSpeed, 0 );
+
+					}
+
+					needsUpdate = true;
+					break;
+
+				case scope.keys.RIGHT:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						rotateLeft( - 2 * Math.PI * scope.rotateSpeed / scope.domElement.clientHeight );
+
+					} else {
+
+						pan( - scope.keyPanSpeed, 0 );
+
+					}
+
+					needsUpdate = true;
+					break;
+
+			}
+
+			if ( needsUpdate ) {
+
+				// prevent the browser from scrolling on cursor keys
+				event.preventDefault();
+
+				scope.update();
+
+			}
+
+
+		}
+
+		function handleTouchStartRotate( event ) {
+
+			if ( pointers.length === 1 ) {
+
+				rotateStart.set( event.pageX, event.pageY );
+
+			} else {
+
+				const position = getSecondPointerPosition( event );
+
+				const x = 0.5 * ( event.pageX + position.x );
+				const y = 0.5 * ( event.pageY + position.y );
+
+				rotateStart.set( x, y );
+
+			}
+
+		}
+
+		function handleTouchStartPan( event ) {
+
+			if ( pointers.length === 1 ) {
+
+				panStart.set( event.pageX, event.pageY );
+
+			} else {
+
+				const position = getSecondPointerPosition( event );
+
+				const x = 0.5 * ( event.pageX + position.x );
+				const y = 0.5 * ( event.pageY + position.y );
+
+				panStart.set( x, y );
+
+			}
+
+		}
+
+		function handleTouchStartDolly( event ) {
+
+			const position = getSecondPointerPosition( event );
+
+			const dx = event.pageX - position.x;
+			const dy = event.pageY - position.y;
+
+			const distance = Math.sqrt( dx * dx + dy * dy );
+
+			dollyStart.set( 0, distance );
+
+		}
+
+		function handleTouchStartDollyPan( event ) {
+
+			if ( scope.enableZoom ) handleTouchStartDolly( event );
+
+			if ( scope.enablePan ) handleTouchStartPan( event );
+
+		}
+
+		function handleTouchStartDollyRotate( event ) {
+
+			if ( scope.enableZoom ) handleTouchStartDolly( event );
+
+			if ( scope.enableRotate ) handleTouchStartRotate( event );
+
+		}
+
+		function handleTouchMoveRotate( event ) {
+
+			if ( pointers.length == 1 ) {
+
+				rotateEnd.set( event.pageX, event.pageY );
+
+			} else {
+
+				const position = getSecondPointerPosition( event );
+
+				const x = 0.5 * ( event.pageX + position.x );
+				const y = 0.5 * ( event.pageY + position.y );
+
+				rotateEnd.set( x, y );
+
+			}
+
+			rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+			const element = scope.domElement;
+
+			rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+			rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+			rotateStart.copy( rotateEnd );
+
+		}
+
+		function handleTouchMovePan( event ) {
+
+			if ( pointers.length === 1 ) {
+
+				panEnd.set( event.pageX, event.pageY );
+
+			} else {
+
+				const position = getSecondPointerPosition( event );
+
+				const x = 0.5 * ( event.pageX + position.x );
+				const y = 0.5 * ( event.pageY + position.y );
+
+				panEnd.set( x, y );
+
+			}
+
+			panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+			pan( panDelta.x, panDelta.y );
+
+			panStart.copy( panEnd );
+
+		}
+
+		function handleTouchMoveDolly( event ) {
+
+			const position = getSecondPointerPosition( event );
+
+			const dx = event.pageX - position.x;
+			const dy = event.pageY - position.y;
+
+			const distance = Math.sqrt( dx * dx + dy * dy );
+
+			dollyEnd.set( 0, distance );
+
+			dollyDelta.set( 0, Math.pow( dollyEnd.y / dollyStart.y, scope.zoomSpeed ) );
+
+			dollyOut( dollyDelta.y );
+
+			dollyStart.copy( dollyEnd );
+
+			const centerX = ( event.pageX + position.x ) * 0.5;
+			const centerY = ( event.pageY + position.y ) * 0.5;
+
+			updateZoomParameters( centerX, centerY );
+
+		}
+
+		function handleTouchMoveDollyPan( event ) {
+
+			if ( scope.enableZoom ) handleTouchMoveDolly( event );
+
+			if ( scope.enablePan ) handleTouchMovePan( event );
+
+		}
+
+		function handleTouchMoveDollyRotate( event ) {
+
+			if ( scope.enableZoom ) handleTouchMoveDolly( event );
+
+			if ( scope.enableRotate ) handleTouchMoveRotate( event );
+
+		}
+
+		//
+		// event handlers - FSM: listen for events and reset state
+		//
+
+		function onPointerDown( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			if ( pointers.length === 0 ) {
+
+				scope.domElement.setPointerCapture( event.pointerId );
+
+				scope.domElement.addEventListener( 'pointermove', onPointerMove );
+				scope.domElement.addEventListener( 'pointerup', onPointerUp );
+
+			}
+
+			//
+
+			if ( isTrackingPointer( event ) ) return;
+
+			//
+
+			addPointer( event );
+
+			if ( event.pointerType === 'touch' ) {
+
+				onTouchStart( event );
+
+			} else {
+
+				onMouseDown( event );
+
+			}
+
+		}
+
+		function onPointerMove( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			if ( event.pointerType === 'touch' ) {
+
+				onTouchMove( event );
+
+			} else {
+
+				onMouseMove( event );
+
+			}
+
+		}
+
+		function onPointerUp( event ) {
+
+			removePointer( event );
+
+			switch ( pointers.length ) {
+
+				case 0:
+
+					scope.domElement.releasePointerCapture( event.pointerId );
+
+					scope.domElement.removeEventListener( 'pointermove', onPointerMove );
+					scope.domElement.removeEventListener( 'pointerup', onPointerUp );
+
+					scope.dispatchEvent( _endEvent );
+
+					state = STATE.NONE;
+
+					break;
+
+				case 1:
+
+					const pointerId = pointers[ 0 ];
+					const position = pointerPositions[ pointerId ];
+
+					// minimal placeholder event - allows state correction on pointer-up
+					onTouchStart( { pointerId: pointerId, pageX: position.x, pageY: position.y } );
+
+					break;
+
+			}
+
+		}
+
+		function onMouseDown( event ) {
+
+			let mouseAction;
+
+			switch ( event.button ) {
+
+				case 0:
+
+					mouseAction = scope.mouseButtons.LEFT;
+					break;
+
+				case 1:
+
+					mouseAction = scope.mouseButtons.MIDDLE;
+					break;
+
+				case 2:
+
+					mouseAction = scope.mouseButtons.RIGHT;
+					break;
+
+				default:
+
+					mouseAction = - 1;
+
+			}
+
+			switch ( mouseAction ) {
+
+				case MOUSE.DOLLY:
+
+					if ( scope.enableZoom === false ) return;
+
+					handleMouseDownDolly( event );
+
+					state = STATE.DOLLY;
+
+					break;
+
+				case MOUSE.ROTATE:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						if ( scope.enablePan === false ) return;
+
+						handleMouseDownPan( event );
+
+						state = STATE.PAN;
+
+					} else {
+
+						if ( scope.enableRotate === false ) return;
+
+						handleMouseDownRotate( event );
+
+						state = STATE.ROTATE;
+
+					}
+
+					break;
+
+				case MOUSE.PAN:
+
+					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+						if ( scope.enableRotate === false ) return;
+
+						handleMouseDownRotate( event );
+
+						state = STATE.ROTATE;
+
+					} else {
+
+						if ( scope.enablePan === false ) return;
+
+						handleMouseDownPan( event );
+
+						state = STATE.PAN;
+
+					}
+
+					break;
+
+				default:
+
+					state = STATE.NONE;
+
+			}
+
+			if ( state !== STATE.NONE ) {
+
+				scope.dispatchEvent( _startEvent );
+
+			}
+
+		}
+
+		function onMouseMove( event ) {
+
+			switch ( state ) {
+
+				case STATE.ROTATE:
+
+					if ( scope.enableRotate === false ) return;
+
+					handleMouseMoveRotate( event );
+
+					break;
+
+				case STATE.DOLLY:
+
+					if ( scope.enableZoom === false ) return;
+
+					handleMouseMoveDolly( event );
+
+					break;
+
+				case STATE.PAN:
+
+					if ( scope.enablePan === false ) return;
+
+					handleMouseMovePan( event );
+
+					break;
+
+			}
+
+		}
+
+		function onMouseWheel( event ) {
+
+			if ( scope.enabled === false || scope.enableZoom === false || state !== STATE.NONE ) return;
+
+			event.preventDefault();
+
+			scope.dispatchEvent( _startEvent );
+
+			handleMouseWheel( customWheelEvent( event ) );
+
+			scope.dispatchEvent( _endEvent );
+
+		}
+
+		function customWheelEvent( event ) {
+
+			const mode = event.deltaMode;
+
+			// minimal wheel event altered to meet delta-zoom demand
+			const newEvent = {
+				clientX: event.clientX,
+				clientY: event.clientY,
+				deltaY: event.deltaY,
+			};
+
+			switch ( mode ) {
+
+				case 1: // LINE_MODE
+					newEvent.deltaY *= 16;
+					break;
+
+				case 2: // PAGE_MODE
+					newEvent.deltaY *= 100;
+					break;
+
+			}
+
+			// detect if event was triggered by pinching
+			if ( event.ctrlKey && ! controlActive ) {
+
+				newEvent.deltaY *= 10;
+
+			}
+
+			return newEvent;
+
+		}
+
+		function interceptControlDown( event ) {
+
+			if ( event.key === 'Control' ) {
+
+				controlActive = true;
+
+
+				const document = scope.domElement.getRootNode(); // offscreen canvas compatibility
+
+				document.addEventListener( 'keyup', interceptControlUp, { passive: true, capture: true } );
+
+			}
+
+		}
+
+		function interceptControlUp( event ) {
+
+			if ( event.key === 'Control' ) {
+
+				controlActive = false;
+
+
+				const document = scope.domElement.getRootNode(); // offscreen canvas compatibility
+
+				document.removeEventListener( 'keyup', interceptControlUp, { passive: true, capture: true } );
+
+			}
+
+		}
+
+		function onKeyDown( event ) {
+
+			if ( scope.enabled === false || scope.enablePan === false ) return;
+
+			handleKeyDown( event );
+
+		}
+
+		function onTouchStart( event ) {
+
+			trackPointer( event );
+
+			switch ( pointers.length ) {
+
+				case 1:
+
+					switch ( scope.touches.ONE ) {
+
+						case TOUCH.ROTATE:
+
+							if ( scope.enableRotate === false ) return;
+
+							handleTouchStartRotate( event );
+
+							state = STATE.TOUCH_ROTATE;
+
+							break;
+
+						case TOUCH.PAN:
+
+							if ( scope.enablePan === false ) return;
+
+							handleTouchStartPan( event );
+
+							state = STATE.TOUCH_PAN;
+
+							break;
+
+						default:
+
+							state = STATE.NONE;
+
+					}
+
+					break;
+
+				case 2:
+
+					switch ( scope.touches.TWO ) {
+
+						case TOUCH.DOLLY_PAN:
+
+							if ( scope.enableZoom === false && scope.enablePan === false ) return;
+
+							handleTouchStartDollyPan( event );
+
+							state = STATE.TOUCH_DOLLY_PAN;
+
+							break;
+
+						case TOUCH.DOLLY_ROTATE:
+
+							if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+
+							handleTouchStartDollyRotate( event );
+
+							state = STATE.TOUCH_DOLLY_ROTATE;
+
+							break;
+
+						default:
+
+							state = STATE.NONE;
+
+					}
+
+					break;
+
+				default:
+
+					state = STATE.NONE;
+
+			}
+
+			if ( state !== STATE.NONE ) {
+
+				scope.dispatchEvent( _startEvent );
+
+			}
+
+		}
+
+		function onTouchMove( event ) {
+
+			trackPointer( event );
+
+			switch ( state ) {
+
+				case STATE.TOUCH_ROTATE:
+
+					if ( scope.enableRotate === false ) return;
+
+					handleTouchMoveRotate( event );
+
+					scope.update();
+
+					break;
+
+				case STATE.TOUCH_PAN:
+
+					if ( scope.enablePan === false ) return;
+
+					handleTouchMovePan( event );
+
+					scope.update();
+
+					break;
+
+				case STATE.TOUCH_DOLLY_PAN:
+
+					if ( scope.enableZoom === false && scope.enablePan === false ) return;
+
+					handleTouchMoveDollyPan( event );
+
+					scope.update();
+
+					break;
+
+				case STATE.TOUCH_DOLLY_ROTATE:
+
+					if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+
+					handleTouchMoveDollyRotate( event );
+
+					scope.update();
+
+					break;
+
+				default:
+
+					state = STATE.NONE;
+
+			}
+
+		}
+
+		function onContextMenu( event ) {
+
+			if ( scope.enabled === false ) return;
+
+			event.preventDefault();
+
+		}
+
+		function addPointer( event ) {
+
+			pointers.push( event.pointerId );
+
+		}
+
+		function removePointer( event ) {
+
+			delete pointerPositions[ event.pointerId ];
+
+			for ( let i = 0; i < pointers.length; i ++ ) {
+
+				if ( pointers[ i ] == event.pointerId ) {
+
+					pointers.splice( i, 1 );
+					return;
+
+				}
+
+			}
+
+		}
+
+		function isTrackingPointer( event ) {
+
+			for ( let i = 0; i < pointers.length; i ++ ) {
+
+				if ( pointers[ i ] == event.pointerId ) return true;
+
+			}
+
+			return false;
+
+		}
+
+		function trackPointer( event ) {
+
+			let position = pointerPositions[ event.pointerId ];
+
+			if ( position === undefined ) {
+
+				position = new Vector2();
+				pointerPositions[ event.pointerId ] = position;
+
+			}
+
+			position.set( event.pageX, event.pageY );
+
+		}
+
+		function getSecondPointerPosition( event ) {
+
+			const pointerId = ( event.pointerId === pointers[ 0 ] ) ? pointers[ 1 ] : pointers[ 0 ];
+
+			return pointerPositions[ pointerId ];
+
+		}
+
+		//
+
+		scope.domElement.addEventListener( 'contextmenu', onContextMenu );
+
+		scope.domElement.addEventListener( 'pointerdown', onPointerDown );
+		scope.domElement.addEventListener( 'pointercancel', onPointerUp );
+		scope.domElement.addEventListener( 'wheel', onMouseWheel, { passive: false } );
+
+		const document = scope.domElement.getRootNode(); // offscreen canvas compatibility
+
+		document.addEventListener( 'keydown', interceptControlDown, { passive: true, capture: true } );
+
+		// force an update at start
+
+		this.update();
+
+	}
+
+}
+
+// TODO add stop render button
+// TODO add FPS
 class Gargantua {
     constructor(renderer) {
         this.renderer = renderer;
+        this.downsampling = 2.0;
         this.size = new Vector2();
         this.fsQuad = new FullScreenQuad();
         this.startTime = Date.now();
@@ -30612,6 +32430,9 @@ class Gargantua {
                 iChannel0: { value: null },
                 iChannel1: { value: null },
                 iChannel2: { value: null },
+                cameraPosition: { value: null },
+                cameraWorldMatrix: { value: null },
+                cameraProjectionMatrixInverse: { value: null },
             },
             vertexShader: quadVert,
             fragmentShader: bufferAfrag,
@@ -30666,8 +32487,7 @@ class Gargantua {
             depthWrite: false,
             transparent: true,
         });
-        this.downsampling = 1.0;
-        this.renderer.getSize(this.size);
+        this.renderer.getSize(this.size.multiplyScalar(1 / this.downsampling));
         this.bufferA = new WebGLRenderTarget(this.size.x / this.downsampling, this.size.y / this.downsampling);
         this.bufferA.texture.name = 'Buffer A';
         this.bufferA.texture.generateMipmaps = false;
@@ -30683,6 +32503,17 @@ class Gargantua {
         this.bufferD = new WebGLRenderTarget(this.size.x / this.downsampling, this.size.y / this.downsampling);
         this.bufferD.texture.name = 'Buffer D';
         this.bufferD.texture.generateMipmaps = false;
+        this.camera = new PerspectiveCamera(45, this.size.x / this.size.y, 0.1, 1000.0);
+        this.camera.position.set(0.0, 0.0, -10.0);
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.autoRotate = true;
+        this.controls.autoRotateSpeed = -0.1;
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.1;
+        this.controls.maxDistance = 15.0;
+        this.controls.minDistance = 5.0;
+        this.controls.panSpeed = 0.05;
+        this.controls.rotateSpeed = 0.05;
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -30693,6 +32524,9 @@ class Gargantua {
             this.material3.uniforms.iResolution.value = this.size;
             this.material4.uniforms.iResolution.value = this.size;
             this.material5.uniforms.iResolution.value = this.size;
+            this.material1.uniforms.cameraWorldMatrix.value = this.camera.matrixWorld;
+            this.material1.uniforms.cameraProjectionMatrixInverse.value = this.camera.projectionMatrixInverse.clone();
+            this.material1.uniforms.cameraPosition.value = this.camera.position;
         });
     }
     setSize(x, y) {
@@ -30716,39 +32550,143 @@ class Gargantua {
         this.material1.uniforms.iChannel1.value = this.texture1;
         this.material1.uniforms.iChannel2.value = this.bufferA1.texture;
         this.fsQuad.material = this.material1;
-        this.renderer.setRenderTarget(this.bufferA);
-        this.fsQuad.render(this.renderer);
-        this.material2.uniforms.iChannel0.value = this.bufferA.texture;
-        this.fsQuad.material = this.material2;
-        this.renderer.setRenderTarget(this.bufferB);
-        this.fsQuad.render(this.renderer);
-        this.material3.uniforms.iChannel0.value = this.bufferB.texture;
-        this.fsQuad.material = this.material3;
-        this.renderer.setRenderTarget(this.bufferC);
-        this.fsQuad.render(this.renderer);
-        this.material4.uniforms.iChannel0.value = this.bufferC.texture;
-        this.fsQuad.material = this.material4;
-        this.renderer.setRenderTarget(this.bufferD);
-        this.fsQuad.render(this.renderer);
-        this.material5.uniforms.iChannel0.value = this.bufferA.texture;
-        this.material5.uniforms.iChannel1.value = this.bufferB.texture;
-        this.material5.uniforms.iChannel2.value = this.bufferC.texture;
-        this.material5.uniforms.iChannel3.value = this.bufferD.texture;
-        this.fsQuad.material = this.material5;
         this.renderer.setRenderTarget(null);
         this.fsQuad.render(this.renderer);
+        // this.material2.uniforms.iChannel0.value = this.bufferA.texture
+        // this.fsQuad.material = this.material2
+        // this.renderer.setRenderTarget(this.bufferB)
+        // this.fsQuad.render(this.renderer)
+        // this.material3.uniforms.iChannel0.value = this.bufferB.texture
+        // this.fsQuad.material = this.material3
+        // this.renderer.setRenderTarget(this.bufferC)
+        // this.fsQuad.render(this.renderer)
+        // this.material4.uniforms.iChannel0.value = this.bufferC.texture
+        // this.fsQuad.material = this.material4
+        // this.renderer.setRenderTarget(this.bufferD)
+        // this.fsQuad.render(this.renderer)
+        // this.material5.uniforms.iChannel0.value = this.bufferA.texture
+        // this.material5.uniforms.iChannel1.value = this.bufferB.texture
+        // this.material5.uniforms.iChannel2.value = this.bufferC.texture
+        // this.material5.uniforms.iChannel3.value = this.bufferD.texture
+        // this.fsQuad.material = this.material5
+        // this.renderer.setRenderTarget(null)
+        // this.fsQuad.render(this.renderer)
         // swap buffer A
         const tmp = this.bufferA1;
         this.bufferA1 = this.bufferA;
         this.bufferA = tmp;
+        this.controls.update();
     }
 }
 
-let renderer, garg;
+class Stats {
+    constructor() {
+        this.mode = 0;
+        this.beginTime = (performance || Date).now();
+        this.prevTime = this.beginTime;
+        this.frames = 0;
+        this.container = document.createElement('div');
+        this.container.style.cssText = 'position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000';
+        this.container.addEventListener('click', (event) => {
+            event.preventDefault();
+            this.showPanel(++this.mode % this.container.children.length);
+        }, false);
+        this.fpsPanel = this.addPanel(new Panel('FPS', '#0ff', '#002'));
+        this.msPanel = this.addPanel(new Panel('MS', '#0f0', '#020'));
+        //@ts-ignore fuck off
+        if (globalThis.performance && globalThis.performance.memory) {
+            this.memPanel = this.addPanel(new Panel('MB', '#f08', '#201'));
+        }
+        this.showPanel(0);
+    }
+    begin() {
+        this.beginTime = (performance || Date).now();
+    }
+    end() {
+        this.frames++;
+        var time = (performance || Date).now();
+        this.msPanel.update(time - this.beginTime, 200);
+        if (time > this.prevTime + 1000) {
+            this.fpsPanel.update((this.frames * 1000) / (time - this.prevTime), 100);
+            this.prevTime = time;
+            this.frames = 0;
+            if (this.memPanel) {
+                //@ts-ignore fuck off
+                var memory = performance.memory;
+                this.memPanel.update(memory.usedJSHeapSize / 1048576, memory.jsHeapSizeLimit / 1048576);
+            }
+        }
+        return time;
+    }
+    update() {
+        this.beginTime = this.end();
+    }
+    showPanel(id) {
+        for (var i = 0; i < this.container.children.length; i++) {
+            this.container.children[i].style.display = i === id ? 'block' : 'none';
+        }
+        this.mode = id;
+    }
+    addPanel(panel) {
+        this.container.appendChild(panel.canvas);
+        return panel;
+    }
+}
+class Panel {
+    constructor(name, fg, bg) {
+        this.name = name;
+        this.fg = fg;
+        this.bg = bg;
+        this.min = Infinity;
+        this.max = 0;
+        this.PR = Math.round(window.devicePixelRatio || 1);
+        this.WIDTH = 80 * this.PR;
+        this.HEIGHT = 48 * this.PR;
+        this.TEXT_X = 3 * this.PR;
+        this.TEXT_Y = 2 * this.PR;
+        this.GRAPH_X = 3 * this.PR;
+        this.GRAPH_Y = 15 * this.PR;
+        this.GRAPH_WIDTH = 74 * this.PR;
+        this.GRAPH_HEIGHT = 30 * this.PR;
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = this.WIDTH;
+        this.canvas.height = this.HEIGHT;
+        this.canvas.style.cssText = 'width:80px;height:48px';
+        this.context = this.canvas.getContext('2d');
+        this.context.font = 'bold ' + 9 * this.PR + 'px Helvetica,Arial,sans-serif';
+        this.context.textBaseline = 'top';
+        this.context.fillStyle = bg;
+        this.context.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        this.context.fillStyle = fg;
+        this.context.fillText(this.name, this.TEXT_X, this.TEXT_Y);
+        this.context.fillRect(this.GRAPH_X, this.GRAPH_Y, this.GRAPH_WIDTH, this.GRAPH_HEIGHT);
+        this.context.fillStyle = bg;
+        this.context.globalAlpha = 0.9;
+        this.context.fillRect(this.GRAPH_X, this.GRAPH_Y, this.GRAPH_WIDTH, this.GRAPH_HEIGHT);
+    }
+    update(value, maxValue) {
+        this.min = Math.min(this.min, value);
+        this.max = Math.max(this.max, value);
+        this.context.fillStyle = this.bg;
+        this.context.globalAlpha = 1;
+        this.context.fillRect(0, 0, this.WIDTH, this.GRAPH_Y);
+        this.context.fillStyle = this.fg;
+        this.context.fillText(Math.round(value) + ' ' + this.name + ' (' + Math.round(this.min) + '-' + Math.round(this.max) + ')', this.TEXT_X, this.TEXT_Y);
+        this.context.drawImage(this.canvas, this.GRAPH_X + this.PR, this.GRAPH_Y, this.GRAPH_WIDTH - this.PR, this.GRAPH_HEIGHT, this.GRAPH_X, this.GRAPH_Y, this.GRAPH_WIDTH - this.PR, this.GRAPH_HEIGHT);
+        this.context.fillRect(this.GRAPH_X + this.GRAPH_WIDTH - this.PR, this.GRAPH_Y, this.PR, this.GRAPH_HEIGHT);
+        this.context.fillStyle = this.bg;
+        this.context.globalAlpha = 0.9;
+        this.context.fillRect(this.GRAPH_X + this.GRAPH_WIDTH - this.PR, this.GRAPH_Y, this.PR, Math.round((1 - value / maxValue) * this.GRAPH_HEIGHT));
+    }
+}
+
+let renderer, garg, stats;
 function animate() {
     return __awaiter(this, void 0, void 0, function* () {
         requestAnimationFrame(animate);
+        stats.begin();
         garg.render();
+        stats.end();
     });
 }
 function init() {
@@ -30758,6 +32696,8 @@ function init() {
         garg = new Gargantua(renderer);
         yield garg.init();
         document.body.appendChild(renderer.domElement);
+        stats = new Stats();
+        document.body.appendChild(stats.container);
     });
 }
 window.addEventListener('load', () => __awaiter(void 0, void 0, void 0, function* () {
