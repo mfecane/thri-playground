@@ -4,6 +4,8 @@ uniform vec2 iResolution;
 uniform sampler2D iChannel0;
 uniform sampler2D iChannel1;
 uniform sampler2D iChannel2;
+uniform mat4 cameraWorldMatrix;
+uniform mat4 cameraProjectionMatrixInverse;
 
 varying vec2 vUv;
 varying vec2 vFragCoord;
@@ -28,7 +30,7 @@ Temporal AA for a smooth image. Temporal accumulation is disabled while moving t
 #define PI 3.14159265359
 
 #define ITERATIONS 150          //Increase for less grainy result
-#define TEMPORAL_AA
+// #define TEMPORAL_AA
 #define ORIGIN vec3(0.0)
 #define SCREEN_SCALE 5.0
 #define SPEED_SCALE 1.0
@@ -301,7 +303,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 #endif
 
     vec3 eyevec = normalize(vec3((uveye * 2.0 - 1.0) * vec2(aspect, 1.0), SCREEN_SCALE));
-    vec3 eyepos = vec3(0.0, -0.0, -10.0);
+    eyevec = ( cameraWorldMatrix * cameraProjectionMatrixInverse * vec4(eyevec, 1.0) ).xyz;
+    vec3 eyepos = cameraPosition;
     
     vec2 mousepos = iMouse.xy / iResolution.xy;
     if (mousepos.x == 0.0)

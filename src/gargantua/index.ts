@@ -1,11 +1,14 @@
 import { WebGLRenderer } from 'three'
 import { Gargantua } from './Gargantua'
+import { Stats } from '../Stats'
 
-let renderer: WebGLRenderer, garg: Gargantua
+let renderer: WebGLRenderer, garg: Gargantua, stats: Stats
 
 async function animate() {
 	requestAnimationFrame(animate)
+	stats.begin()
 	garg.render()
+	stats.end()
 }
 
 async function init() {
@@ -16,10 +19,14 @@ async function init() {
 	await garg.init()
 
 	document.body.appendChild(renderer.domElement)
+
+	stats = new Stats()
+	document.body.appendChild(stats.container)
 }
 
 window.addEventListener('load', async () => {
 	await init()
+
 	animate()
 })
 

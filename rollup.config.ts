@@ -17,6 +17,7 @@ const entries: Item[] = [
 	{ id: 'fog', folder: null },
 	{ id: 'gargantua', folder: null },
 	{ id: '3dnoise', folder: null },
+	{ id: 'cubemap', folder: null },
 ]
 
 const DEFAULT = {

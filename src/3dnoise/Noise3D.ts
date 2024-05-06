@@ -4,7 +4,7 @@ import quadVert from './shaders/quad_vert.glsl'
 
 // change noises here
 
-import bufferAfrag from './shaders/classic_perlin_frag.glsl'
+import bufferAfrag from './shaders/classic_perlin_frag_tileable.glsl'
 //import bufferAfrag from './shaders/nikita_noise_frag.glsl'
 
 export class Noise3D {

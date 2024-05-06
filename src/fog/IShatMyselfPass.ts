@@ -47,6 +47,8 @@ const SmokeShader = {
 		// light
 		shadowMap: { value: null },
 		directionalShadowMatrix: { value: null },
+		scale2: { value: 0.0 },
+		scale3: { value: 0.0 },
 	},
 
 	vertexShader: depthVert,
@@ -94,6 +96,9 @@ export class IShatMyselfPass extends Pass {
 	private downSampling = 2
 
 	private fsQuad: FullScreenQuad
+
+	public scale2: number = 4.0
+	public scale3: number = 1.0
 
 	public constructor(
 		private scene: Scene,
@@ -170,10 +175,13 @@ export class IShatMyselfPass extends Pass {
 
 		this.smokeMaterial.uniforms['depthTexture'].value = this.depthBuffer.texture
 		this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position
-		this.smokeMaterial.uniforms['time'].value = (Date.now() - startTime) / 10000
+		this.smokeMaterial.uniforms.time.value = (Date.now() - startTime) / 10000
 
 		this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map.texture
 		this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix
+
+		this.smokeMaterial.uniforms.scale2.value = this.scale2
+		this.smokeMaterial.uniforms.scale3.value = this.scale3
 
 		this.fsQuad.material = this.smokeMaterial
 		renderer.setRenderTarget(this.someBuffer)

@@ -23,6 +23,8 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { GammaCorrectionShader } from 'three/examples/jsm/shaders/GammaCorrectionShader.js'
 import { IShatMyselfPass } from './IShatMyselfPass'
+import { Stats } from '../Stats'
+
 //@ts-ignore fuck off
 import * as dat from 'dat.gui'
 
@@ -31,12 +33,16 @@ let renderer: WebGLRenderer,
 	camera: PerspectiveCamera,
 	controls: OrbitControls,
 	light: DirectionalLight,
-	composer: EffectComposer
+	composer: EffectComposer,
+	stats: Stats,
+	passs: IShatMyselfPass
 
 async function animate() {
 	// await new Promise((resolve) => setTimeout(resolve, 200))
 
 	requestAnimationFrame(animate)
+
+	stats.begin()
 
 	let time = performance.now() * 0.002
 
@@ -46,6 +52,8 @@ async function animate() {
 
 	composer.render()
 	controls.update()
+
+	stats.end()
 }
 
 function init() {
@@ -70,12 +78,15 @@ function init() {
 	composer = new EffectComposer(renderer)
 	composer.addPass(new RenderPass(scene, camera))
 	// composer.addPass(new ShaderPass(GammaCorrectionShader))
-	const pass = new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light)
-	pass.init()
-	composer.addPass(pass)
+	passs = new IShatMyselfPass(scene, camera, new Vector2(window.innerWidth, window.innerHeight), light)
+	passs.init()
+	composer.addPass(passs)
 
 	// const ah = new AxesHelper()
 	// scene.add(ah)
+
+	stats = new Stats()
+	document.body.appendChild(stats.container)
 }
 
 function addCube(scene: Scene) {
@@ -121,4 +132,6 @@ window.addEventListener('load', () => {
 	animate()
 
 	const gui = new dat.GUI()
+	gui.add(passs, 'scale2', 0.0, 10.0)
+	gui.add(passs, 'scale3', 0.0, 1.0)
 })
