@@ -14,6 +14,7 @@ const entries: Item[] = [
 	{ id: 'noise-fog', folder: 'archive' },
 	{ id: 'volumetric-shadow', folder: 'archive' },
 	{ id: 'fog1', folder: 'archive' },
+	{ id: 'fog_v2', folder: 'archive' },
 	{ id: 'fog', folder: null },
 	{ id: 'gargantua', folder: null },
 	{ id: '3dnoise', folder: null },

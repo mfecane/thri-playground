@@ -156,7 +156,7 @@ export class IShatMyselfPass extends Pass {
 	}
 
 	public async init() {
-		const texture3d = await loadTexture('assets/textures/3d-noise.png')
+		const texture3d = await loadTexture('../assets/textures/3d-noise.png')
 		this.smokeMaterial.uniforms['texture3d'].value = texture3d
 	}
 
