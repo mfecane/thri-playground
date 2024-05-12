@@ -33583,7 +33583,7 @@ class IShatMyselfPass extends Pass {
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
-            const texture3d = yield loadTexture('assets/textures/3d-noise.png');
+            const texture3d = yield loadTexture('/assets/textures/3d-noise.png');
             this.smokeMaterial.uniforms['texture3d'].value = texture3d;
         });
     }
