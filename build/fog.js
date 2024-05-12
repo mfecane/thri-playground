@@ -33468,7 +33468,7 @@ class RenderPass extends Pass {
 
 var depthVert = "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
 
-var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 50\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\n#define TEXTURE_SIZE_3D 8.0\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D texture3d;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform float scale2;uniform float scale3;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float rand(vec2 n){return fract(sin(dot(n,vec2(12.9898,4.1414)))*43758.5453);}vec3 sampleNoise3d(vec3 p){vec3 p2=fract((p+vec3(1.0))/2.0);float size=TEXTURE_SIZE_3D;float yIndex=p2.z*(size*size-1.0);float row=floor(yIndex/size);float col=floor(yIndex-row*size);vec2 uv2=(vec2(col,row)+p2.xy)/size;return texture(texture3d,uv2).rgb;}float Noise3d(in vec3 p){vec3 shift=vec3(1.213*sin(iTime/2.0),2.312*cos(iTime/2.0),0.312);vec3 samplePoint=p+scale3*(sampleNoise3d(p/4.0+shift));float noise=sampleNoise3d(samplePoint/scale2).r*sampleNoise3d(samplePoint.yzx/scale2).g*sampleNoise3d(samplePoint.zxy/scale2).b;return noise;}float getWorldShadow(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);return getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);}float densityFunction(vec3 point){vec3 pp=point;float density=Noise3d(pp);density*=getWorldShadow(point);return density;}bool rayIntersectInfiniteCylinder(vec3 ro,vec3 rd,out float near,out float far){vec3 rdp=vec3(rd.x,0.0,rd.z);vec3 rop=vec3(ro.x,0.0,ro.z);float b=dot(rdp,rop);float a=dot(rdp,rdp);float c=dot(rop,rop)-4.0;float det=b*b-a*c;if(det>0.0){float detsqrt=sqrt(det);near=(-b-detsqrt)/a;far=(-b+detsqrt)/a;return far>0.0;}return false;}float volumetricMarch(vec3 ro,vec3 rd,float depth){float dens=0.0;float step=min(0.2,depth/float(MAX_STEPS))+rand(vUv)*0.05;float density=0.1;float near=0.0,far=0.0;if(!rayIntersectInfiniteCylinder(ro,rd,near,far)){return 0.0;}float dO=max(0.0,near);for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*dO;dens+=density*step*densityFunction(p);dO+=step;if(dO>MAX_DIST||dO>depth+0.1||dens>0.9||dO>far){break;}}return dens;}vec3 rayNoise(vec3 n){float scale=0.01;return scale*(vec3(rand(n.xy),rand(n.yz),rand(n.zx))-vec3(0.5));}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;float d=volumetricMarch(rayOrigin,rayDirection,viewZ);vec3 col=vec3(d);gl_FragColor.rgb=col;gl_FragColor.a=1.0;}";
+var depthFrag = "#include <packing>\n#include <shadowmap_pars_fragment>\n#define MAX_STEPS 60\n#define MAX_DIST 8.0\n#define SURF_DIST 0.0001\n#define iTime time\n#define TEXTURE_SIZE_3D 8.0\nvarying vec2 vUv;uniform sampler2D depthTexture;uniform sampler2D texture3d;uniform sampler2D colorTexture;uniform vec2 cameraNearFar;uniform vec2 resolution;uniform mat4 cameraWorldMatrix;uniform mat4 cameraProjectionMatrixInverse;uniform float time;uniform float scale2;uniform float scale3;uniform vec3 lightPosition;uniform float derivative;uniform float density2;uniform sampler2D shadowMap;uniform mat4 directionalShadowMatrix;float getDepth(const in vec2 screenPosition){\n#if DEPTH_PACKING == 1\nreturn unpackRGBAToDepth(texture2D(depthTexture,screenPosition));\n#else\nreturn texture2D(tDepth,screenPosition).x;\n#endif\n}float getViewZ(const in float depth){\n#if PERSPECTIVE_CAMERA == 1\nreturn perspectiveDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNearFar.x,cameraNearFar.y);\n#endif\n}float rand(vec2 n){return fract(sin(dot(n,vec2(12.9898,4.1414)))*43758.5453);}vec3 sampleNoise3d(vec3 p){vec3 p2=fract((p+vec3(1.0))/2.0);float size=TEXTURE_SIZE_3D;float yIndex=p2.z*(size*size-1.0);float row=floor(yIndex/size);float col=floor(yIndex-row*size);vec2 uv2=(vec2(col,row)+p2.xy)/size;return texture(texture3d,uv2).rgb;}float Noise3d(in vec3 p){vec3 shift=vec3(1.213*sin(iTime/4.0),2.312*cos(iTime/5.341+7.145),0.312*cos(iTime/7.1234+3.145));vec3 samplePoint=p+scale3*(sampleNoise3d(p/4.0+shift));float noise=sampleNoise3d(samplePoint/scale2).r*sampleNoise3d(samplePoint.yzx/scale2).g*sampleNoise3d(samplePoint.zxy/scale2).b;return noise;}float getWorldShadow(vec3 point){vec4 vDirectionalShadowCoord=directionalShadowMatrix*vec4(point,1.0);return getShadow(shadowMap,vec2(512.0,512.0),0.0,1.0,vDirectionalShadowCoord);}float densityFunction(vec3 point){vec3 pp=point;float density=0.1+Noise3d(pp)*0.2;density*=getWorldShadow(point);return density;}bool rayIntersectInfiniteCylinder(vec3 ro,vec3 rd,out float near,out float far){vec3 rdp=vec3(rd.x,0.0,rd.z);vec3 rop=vec3(ro.x,0.0,ro.z);float b=dot(rdp,rop);float a=dot(rdp,rdp);float c=dot(rop,rop)-6.0;float det=b*b-a*c;if(det>0.0){float detsqrt=sqrt(det);near=(-b-detsqrt)/a;far=(-b+detsqrt)/a;return far>0.0;}return false;}vec4 volumetricMarch(vec3 ro,vec3 rd,float depth){vec4 sum=vec4(0.0);float step=min(0.1,depth/float(MAX_STEPS));step+=rand(vUv)*0.02;float density=density2;float near=0.0,far=0.0;if(!rayIntersectInfiniteCylinder(ro,rd,near,far)){return vec4(0.0);}float dO=max(0.0,near);for(int i=0;i<MAX_STEPS;i++){if(dO>depth){step=depth-dO;dO=depth;i=MAX_STEPS;}vec3 p=ro+rd*dO;float sample1=densityFunction(p);if(sample1>0.05){float light=smoothstep(6.0,0.0,length(lightPosition-p));vec4 col=vec4(mix(vec3(0.2,0.2,0.3),vec3(0.6,1.0,1.1),light),1.0);sum+=col*density*step*sample1;}dO+=step;if(dO>MAX_DIST||sum.a>0.9||dO>far){break;}}return sum;}vec3 rayNoise(vec3 n){float scale=0.01;return scale*(vec3(rand(n.xy),rand(n.yz),rand(n.zx))-vec3(0.5));}void main(){float viewZ=-getViewZ(getDepth(vUv));vec3 rayOrigin=cameraPosition;vec2 screenPos=(gl_FragCoord.xy*2.0-resolution)/resolution;vec4 ndcRay=vec4(screenPos.xy,1.0,1.0);vec3 rayDirection=(cameraWorldMatrix*cameraProjectionMatrixInverse*ndcRay).xyz;rayDirection+=rayNoise(rayDirection);gl_FragColor=volumetricMarch(rayOrigin,rayDirection,viewZ);}";
 
 function loadTexture(src_1) {
     return __awaiter(this, arguments, void 0, function* (src, flip = false, srgb = false) {
@@ -33505,11 +33505,14 @@ const SmokeShader = {
         cameraPosition: { value: null },
         time: { value: 0 },
         texture3d: { value: null },
+        lightPosition: { value: null },
+        density2: { value: null },
         // light
         shadowMap: { value: null },
         directionalShadowMatrix: { value: null },
         scale2: { value: 0.0 },
         scale3: { value: 0.0 },
+        derivative: { value: null },
     },
     vertexShader: depthVert,
     fragmentShader: depthFrag,
@@ -33531,8 +33534,9 @@ const OVERLAY_MATERIAL = new ShaderMaterial({
 		uniform sampler2D readBuffer;
 
 		void main() {
-			float smoke = texture2D(smokeBuffer, vUv).r;
-			gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke * vec3(0.8, 0.8, 1.0);
+			vec4 smoke = texture2D(smokeBuffer, vUv);
+			// gl_FragColor.rgb = mix(texture2D(readBuffer, vUv).rgb, smoke.rgb, smoke.a);
+			gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke.rgb * smoke.a;
 			gl_FragColor.a = 1.0;
 		}`,
     // blending: AdditiveBlending,
@@ -33550,6 +33554,8 @@ class IShatMyselfPass extends Pass {
         this.downSampling = 2;
         this.scale2 = 4.0;
         this.scale3 = 1.0;
+        this.derivative = 0.4;
+        this.density = 0.7;
         this.fsQuad = new FullScreenQuad();
         this.depthMaterial = new MeshDepthMaterial();
         this.depthMaterial.side = DoubleSide;
@@ -33595,8 +33601,11 @@ class IShatMyselfPass extends Pass {
         this.smokeMaterial.uniforms.time.value = (Date.now() - startTime) / 10000;
         this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map.texture;
         this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix;
+        this.smokeMaterial.uniforms.lightPosition.value = this.light.position.normalize();
+        this.smokeMaterial.uniforms.derivative.value = this.derivative;
         this.smokeMaterial.uniforms.scale2.value = this.scale2;
         this.smokeMaterial.uniforms.scale3.value = this.scale3;
+        this.smokeMaterial.uniforms.density2.value = this.density;
         this.fsQuad.material = this.smokeMaterial;
         renderer.setRenderTarget(this.someBuffer);
         renderer.clear();
@@ -36213,9 +36222,9 @@ function animate() {
         requestAnimationFrame(animate);
         stats.begin();
         let time = performance.now() * 0.002;
-        light.position.x = Math.sin(time * 0.1) * 2.0;
-        light.position.y = 2.0;
-        light.position.z = Math.cos(time * 0.1) * 2.0;
+        light.position.x = Math.sin(time * 0.1) * 4.0;
+        light.position.y = 1.0;
+        light.position.z = Math.cos(time * 0.1) * 4.0;
         composer.render();
         controls.update();
         stats.end();
@@ -36254,7 +36263,7 @@ function addCube(scene) {
     scene.add(cube);
 }
 function addPlane(scene) {
-    const plane = new Mesh(new PlaneGeometry(4, 4), new MeshStandardMaterial({ color: 0xcccccc }));
+    const plane = new Mesh(new PlaneGeometry(6, 6), new MeshStandardMaterial({ color: 0xcccccc }));
     plane.rotateOnAxis(new Vector3(1, 0, 0), -Math.PI / 2);
     plane.position.set(0, -0.5, 0);
     plane.receiveShadow = true;
@@ -36265,7 +36274,7 @@ function addLight(scene) {
     light.position.set(0, 2, 0);
     light.castShadow = true;
     light.shadow.camera.near = 0.1;
-    light.shadow.camera.far = 6.0;
+    light.shadow.camera.far = 8.0;
     light.shadow.camera.top = 2.0;
     light.shadow.camera.bottom = -2.0;
     light.shadow.camera.left = -2.0;
@@ -36283,4 +36292,6 @@ window.addEventListener('load', () => {
     const gui = new GUI$1();
     gui.add(passs, 'scale2', 0.0, 10.0);
     gui.add(passs, 'scale3', 0.0, 1.0);
+    gui.add(passs, 'derivative', 0.0, 1.0);
+    gui.add(passs, 'density', 0.0, 1.0);
 });
