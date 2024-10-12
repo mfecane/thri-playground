@@ -1,15 +1,19 @@
 import {
+	AlwaysStencilFunc,
 	AmbientLight,
-	AxesHelper,
+	BackSide,
+	BufferGeometry,
 	DirectionalLight,
-	Light,
+	EqualStencilFunc,
 	Mesh,
 	MeshBasicMaterial,
 	MeshStandardMaterial,
+	NeverStencilFunc,
+	NotEqualStencilFunc,
 	PerspectiveCamera,
 	PlaneGeometry,
+	ReplaceStencilOp,
 	Scene,
-	ShaderMaterial,
 	Texture,
 	TextureLoader,
 	Vector3,
@@ -18,41 +22,8 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 
-const mat = new ShaderMaterial({
-	uniforms: {
-		map: { value: null },
-	},
-
-	vertexShader: [
-		'varying vec2 vUv;',
-
-		'void main() {',
-
-		'	vUv = vec2( uv.x, uv.y );',
-		'	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
-
-		'}',
-	].join('\n'),
-
-	fragmentShader: [
-		`
-		uniform sampler2D map;
-		varying vec2 vUv;
-
-		void main() {
-
-			vec2 uv = vUv;
-
-			gl_FragColor = texture2D( map, uv );
-			// gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-
-		}
-	`,
-	].join('\n'),
-})
-
 export class AlphaDepth {
-	public renderer = new WebGLRenderer()
+	public renderer = new WebGLRenderer({ stencil: true })
 
 	private scene = new Scene()
 
@@ -60,28 +31,77 @@ export class AlphaDepth {
 
 	private orbitControls = new OrbitControls(this.camera, this.renderer.domElement)
 
+	private start = Date.now()
+
 	public static async create(width: number, height: number) {
-		const model = await new FBXLoader().loadAsync('assets/3d-models/test.fbx')
-		const texture = await new TextureLoader().loadAsync('assets/3d-models/Grayscale.png')
+		const model1 = await new FBXLoader().loadAsync('assets/3d-models/test.fbx')
+		const model2 = await new FBXLoader().loadAsync('assets/3d-models/side.fbx')
+
+		const texture = await new TextureLoader().loadAsync('assets/3d-models/Color.png')
+
 		//@ts-expect-error fuck off
-		const mesh: Mesh = model.children[0]
-		mesh.geometry.scale(0.015, 0.015, 0.015)
-		mesh.geometry.translate(-0.5, 0.5, 0)
-		mesh.material = new MeshStandardMaterial({ color: 0xffffff, map: texture })
-		return new AlphaDepth(width, height, mesh, texture)
+		const geometry1: BufferGeometry = model1.children[0].geometry
+
+		//@ts-expect-error fuck off
+		const geometry2: BufferGeometry = model2.children[0].geometry
+
+		geometry1.scale(0.015, 0.015, 0.015)
+		geometry1.translate(-0.5, 0.5, 0)
+
+		geometry2.scale(0.015, 0.015, 0.015)
+		geometry2.translate(-0.5, 0.5, 0)
+
+		return new AlphaDepth(width, height, geometry1, geometry2, texture)
 	}
 
-	private constructor(private width: number, private height: number, private mesh: Mesh, private texture: Texture) {
+	private constructor(
+		private width: number,
+		private height: number,
+		geometry1: BufferGeometry,
+		geometry2: BufferGeometry,
+		texture: Texture
+	) {
 		this.renderer.setSize(this.width, this.height)
 
-		mesh.material = mat
-		mat.uniforms.map.value = this.texture
-		this.scene.add(mesh)
+		const mesh0 = new Mesh(
+			geometry1,
+			new MeshBasicMaterial({
+				side: BackSide,
+				colorWrite: false,
+				stencilWrite: true,
+				stencilRef: 1,
+				stencilFunc: AlwaysStencilFunc,
+				stencilFail: ReplaceStencilOp,
+				stencilZFail: ReplaceStencilOp,
+				stencilZPass: ReplaceStencilOp,
+			})
+		)
+		mesh0.renderOrder = 1
+		this.scene.add(mesh0)
+
+		const mesh1 = new Mesh(
+			geometry1,
+			new MeshStandardMaterial({
+				map: texture,
+				transparent: true,
+				stencilWrite: true,
+				stencilRef: 1,
+				stencilFunc: EqualStencilFunc,
+				stencilFail: ReplaceStencilOp,
+				stencilZFail: ReplaceStencilOp,
+				stencilZPass: ReplaceStencilOp,
+			})
+		)
+		mesh1.renderOrder = 2
+		mesh1.onAfterRender = function (renderer) {
+			renderer.clearStencil()
+		}
+		this.scene.add(mesh1)
 
 		this.camera.position.set(2, 2, 5)
 		this.orbitControls.target = new Vector3(0, 1, 0)
 
-		this.scene.add(new AxesHelper())
+		// this.scene.add(new AxesHelper())
 
 		const light = new DirectionalLight(0xffffff, 1)
 		light.position.set(2, 5, 2)
@@ -100,7 +120,7 @@ export class AlphaDepth {
 	}
 
 	public resize(innerWidth: number, innerHeight: number) {
-		this.width = innerHeight
+		this.width = innerWidth
 		this.height = innerHeight
 		this.renderer.setSize(this.width, this.height)
 	}
