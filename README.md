@@ -15,3 +15,7 @@ Random three.js shit
 - seamless noise
 - move noises towards each other
 - 2 channels of noise projected from xy and yz
+
+# NOTES
+
+## Sampling
