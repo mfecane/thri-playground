@@ -4,7 +4,14 @@ import {
 	BackSide,
 	BufferGeometry,
 	DirectionalLight,
+	DoubleSide,
 	EqualStencilFunc,
+	FrontSide,
+	GreaterStencilFunc,
+	IncrementStencilOp,
+	KeepStencilOp,
+	LessEqualStencilFunc,
+	LessStencilFunc,
 	Mesh,
 	MeshBasicMaterial,
 	MeshStandardMaterial,
@@ -65,33 +72,22 @@ export class AlphaDepth {
 
 		const mesh0 = new Mesh(
 			geometry1,
-			new MeshBasicMaterial({
-				side: BackSide,
+			new MeshStandardMaterial({
 				colorWrite: false,
-				stencilWrite: true,
-				stencilRef: 1,
-				stencilFunc: AlwaysStencilFunc,
-				stencilFail: ReplaceStencilOp,
-				stencilZFail: ReplaceStencilOp,
-				stencilZPass: ReplaceStencilOp,
+				depthTest: true,
+				depthWrite: true,
 			})
 		)
 		mesh0.renderOrder = 1
 		this.scene.add(mesh0)
 
-		const mesh1 = new Mesh(
-			geometry1,
-			new MeshStandardMaterial({
-				map: texture,
-				transparent: true,
-				stencilWrite: true,
-				stencilRef: 1,
-				stencilFunc: EqualStencilFunc,
-				stencilFail: ReplaceStencilOp,
-				stencilZFail: ReplaceStencilOp,
-				stencilZPass: ReplaceStencilOp,
-			})
-		)
+		const finalmat = new MeshStandardMaterial({
+			map: texture,
+			transparent: true,
+			depthTest: true,
+		})
+
+		const mesh1 = new Mesh(geometry1, finalmat)
 		mesh1.renderOrder = 2
 		mesh1.onAfterRender = function (renderer) {
 			renderer.clearStencil()
@@ -100,8 +96,6 @@ export class AlphaDepth {
 
 		this.camera.position.set(2, 2, 5)
 		this.orbitControls.target = new Vector3(0, 1, 0)
-
-		// this.scene.add(new AxesHelper())
 
 		const light = new DirectionalLight(0xffffff, 1)
 		light.position.set(2, 5, 2)
