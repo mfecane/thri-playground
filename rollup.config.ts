@@ -20,6 +20,7 @@ const entries: Item[] = [
 	{ id: '3dnoise', folder: null },
 	{ id: 'cubemap', folder: null },
 	{ id: 'alpha_depth', folder: null },
+	{ id: 'ExtrudeGeometry', folder: null },
 ]
 
 const DEFAULT = {
