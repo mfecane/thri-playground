@@ -1,4 +1,17 @@
-import { WebGLRenderer, Scene, Shape, Camera, MeshBasicMaterial, ExtrudeGeometry, Mesh, PerspectiveCamera, AxesHelper, TextureLoader, ExtrudeGeometryOptions } from 'three'
+import {
+	WebGLRenderer,
+	Scene,
+	Shape,
+	Camera,
+	MeshBasicMaterial,
+	ExtrudeGeometry,
+	Mesh,
+	PerspectiveCamera,
+	AxesHelper,
+	TextureLoader,
+	ExtrudeGeometryOptions,
+	MeshStandardMaterial,
+} from 'three'
 import { Stats } from '../Stats'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
@@ -14,7 +27,7 @@ async function animate() {
 }
 
 async function init() {
-	renderer = new WebGLRenderer({antialias: true})
+	renderer = new WebGLRenderer({ antialias: true })
 
 	renderer.setSize(window.innerWidth, window.innerHeight)
 
@@ -28,7 +41,8 @@ async function init() {
 
 	orbitControls = new OrbitControls(camera, renderer.domElement)
 
-	const length = 2, width = 2
+	const length = 2,
+		width = 2
 
 	const shape = new Shape()
 	shape.moveTo(0, 0)
@@ -44,8 +58,14 @@ async function init() {
 	}
 
 	const geometry = new ExtrudeGeometry(shape, extrudeSettings)
-	const material = new MeshBasicMaterial({ color: 0x00ff00 , wireframe: false})
-	const material2 = new MeshBasicMaterial({ color: 0xffffff , wireframe: true, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1})
+	const material = new MeshStandardMaterial({ color: 0xffffff, wireframe: false })
+	const material2 = new MeshBasicMaterial({
+		color: 0xffffff,
+		wireframe: true,
+		polygonOffset: true,
+		polygonOffsetFactor: 1,
+		polygonOffsetUnits: 1,
+	})
 
 	material.map = await new TextureLoader().loadAsync('assets/textures/checker.webp')
 
