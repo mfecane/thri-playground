@@ -7,16 +7,17 @@
 		"url": "https://github.com/mfecane/thri-playground"
 	},
 	"scripts": {
-		"dev": "concurrently \"rollup -w --config rollup.config.ts --configPlugin @rollup/plugin-typescript\" \"live-server public\"",
-		"watch": "rollup -w --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
+		"dev": "concurrently \"npm run watch\" \"live-server build\"",
+		"watch": "node --max-old-space-size=8192 ./node_modules/.bin/rollup -w --config rollup.config.ts --configPlugin @rollup/plugin-typescript --configPlugin \"typescript={tsconfig:'tsconfig.rollup.json'}\" --bundleConfigAsCjs",
 		"build": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
-		"deploy": "gh-pages -d public"
+		"deploy": "gh-pages -d build"
 	},
 	"author": "Mfecane <aaliapkin@gmail.com>",
 	"license": "MIT",
 	"devDependencies": {
 		"@rollup/plugin-node-resolve": "^15.2.3",
 		"@rollup/plugin-typescript": "^11.1.6",
+		"@types/node": "^22.13.11",
 		"@types/three": "^0.164.0",
 		"concurrently": "^8.2.2",
 		"gh-pages": "^6.1.1",

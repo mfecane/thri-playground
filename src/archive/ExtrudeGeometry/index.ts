@@ -12,7 +12,7 @@ import {
 	ExtrudeGeometryOptions,
 	MeshStandardMaterial,
 } from 'three'
-import { Stats } from '../Stats'
+import { Stats } from '../../shared/Stats'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 let renderer: WebGLRenderer, stats: Stats

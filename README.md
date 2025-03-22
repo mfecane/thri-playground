@@ -4,6 +4,12 @@ Random three.js shit
 
         npm run dev
 
+## Rullup
+        
+        Use specific tsconfig
+
+        npx rollup -w --config rollup.config.ts --configPlugin @rollup/plugin-typescript --configPlugin "typescript={tsconfig:'tsconfig.rollup.json'}"
+
 # TODO
 
 [] add liveserver to package

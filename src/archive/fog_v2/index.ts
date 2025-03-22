@@ -23,7 +23,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { GammaCorrectionShader } from 'three/examples/jsm/shaders/GammaCorrectionShader.js'
 import { IShatMyselfPass } from './IShatMyselfPass'
-import { Stats } from '../../Stats'
+import { Stats } from '../../shared/Stats'
 
 //@ts-ignore fuck off
 import * as dat from 'dat.gui'

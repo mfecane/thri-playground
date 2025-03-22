@@ -1,6 +1,6 @@
 import { WebGLRenderer } from 'three'
 import { Gargantua } from './Gargantua'
-import { Stats } from '../Stats'
+import { Stats } from '../shared/Stats'
 
 let renderer: WebGLRenderer, garg: Gargantua, stats: Stats
 
