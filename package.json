@@ -7,28 +7,33 @@
 		"url": "https://github.com/mfecane/thri-playground"
 	},
 	"scripts": {
-		"dev": "concurrently \"npm run watch\" \"live-server build\"",
-		"watch": "node --max-old-space-size=8192 ./node_modules/.bin/rollup -w --config rollup.config.ts --configPlugin @rollup/plugin-typescript --configPlugin \"typescript={tsconfig:'tsconfig.rollup.json'}\" --bundleConfigAsCjs",
-		"build": "rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
-		"deploy": "gh-pages -d build"
+		"gulp": "gulp --require node_modules/ts-node/register --project tsconfig.gulp.json",
+		"tattoo-rendering": "npm run gulp --task dev:tattoo-rendering"
 	},
 	"author": "Mfecane <aaliapkin@gmail.com>",
 	"license": "MIT",
 	"devDependencies": {
-		"@rollup/plugin-node-resolve": "^15.2.3",
+		"@rollup/plugin-commonjs": "^28.0.3",
+		"@rollup/plugin-node-resolve": "^15.3.1",
 		"@rollup/plugin-typescript": "^11.1.6",
-		"@types/node": "^22.13.11",
+		"@types/fs-extra": "^11.0.4",
+		"@types/gulp": "^4.0.17",
 		"@types/three": "^0.164.0",
+		"browser-sync": "^3.0.3",
 		"concurrently": "^8.2.2",
 		"gh-pages": "^6.1.1",
+		"gulp": "^5.0.0",
+		"gulp-rollup": "^2.17.0",
 		"live-server": "^1.2.2",
-		"rollup": "^4.17.1",
+		"rollup": "^4.36.0",
 		"rollup-plugin-glsl": "^1.3.0",
+		"ts-node": "^10.9.2",
 		"tslib": "^2.6.2",
-		"typescript": "^5.4.5"
+		"typescript": "^5.8.2"
 	},
 	"dependencies": {
 		"dat.gui": "^0.7.9",
+		"gulp-typescript": "^6.0.0-alpha.1",
 		"three": "^0.164.1"
 	}
 }

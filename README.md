@@ -2,7 +2,9 @@ Random three.js shit
 
 # Run
 
-        npm run dev
+        npm run gulp --task dev:tattoo-rendering
+
+        npm run tattoo-rendering
 
 ## Rullup
         
