@@ -184,7 +184,7 @@ export class IShatMyselfPass extends Pass {
 		this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position
 		this.smokeMaterial.uniforms.time.value = (Date.now() - startTime) / 10000
 
-		this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map.texture
+		this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map!.texture
 		this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix
 
 		this.smokeMaterial.uniforms.lightPosition.value = this.light.position.normalize()
