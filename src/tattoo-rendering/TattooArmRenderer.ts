@@ -49,6 +49,8 @@ export class TattooArmRenderer implements Renderer {
 
 	private textureLoader = new TextureLoader()
 
+	private animId: number = -1
+
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true })
 
@@ -209,6 +211,9 @@ export class TattooArmRenderer implements Renderer {
 	}
 
 	public async destroy() {
+		cancelAnimationFrame(this.animId);
+		this.renderer.domElement.remove()
+		this.orbitControls.dispose()
 		this.renderer.dispose()
 	}
 }

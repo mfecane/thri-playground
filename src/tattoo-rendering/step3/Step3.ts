@@ -46,7 +46,7 @@ const DepthShader = {
 	fragmentShader: depthFrag,
 }
 
-export class Step2 implements Renderer {
+export class Step3 implements Renderer {
 	/**
 	 * CONSTANTS
 	 */
@@ -108,7 +108,6 @@ export class Step2 implements Renderer {
 	 */
 	private depthDispayMaterial = new ShaderMaterial({
 		defines: {
-			DEPTH_PACKING: 1,
 			PERSPECTIVE_CAMERA: 1,
 		},
 		uniforms: DepthShader.uniforms,
@@ -126,7 +125,8 @@ export class Step2 implements Renderer {
 
 		this.depthMaterial = new MeshDepthMaterial()
 		this.depthMaterial.side = DoubleSide
-		this.depthMaterial.depthPacking = RGBADepthPacking
+		//@ts-expect-error
+		this.depthMaterial.depthPacking = 3202
 		this.depthMaterial.blending = NoBlending
 
 		this.scene.background = new Color(0.05, 0.05, 0.07)
@@ -233,9 +233,6 @@ export class Step2 implements Renderer {
 
 		// this.depthMaterial.map = this.colorMap
 
-		// const ah = new AxesHelper()
-		// scene.add(ah)
-
 		this.scene.add(mesh)
 	}
 
@@ -289,4 +286,4 @@ export class Step2 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step2, Step2, 'Arm', 'depth visualization')
+renderersReposditory.register(RenderersEnum.step3, Step3, 'Arm', 'depth and alpha visualization')

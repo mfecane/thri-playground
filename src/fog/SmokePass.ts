@@ -14,14 +14,12 @@ import {
 	DirectionalLight,
 	Vector3,
 	AdditiveBlending,
-	TextureLoader,
-	SRGBColorSpace,
-	LinearSRGBColorSpace,
 } from 'three'
 import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js'
 
-import depthVert from '@/fog/shaders/depth_vert.glsl'
-import depthFrag from '@/fog/shaders/depth_frag.glsl'
+import depthVert from './shaders/depth_vert.glsl'
+import depthFrag from './shaders/depth_frag.glsl'
+import { loadTexture } from './LoadTexture'
 
 let startTime = Date.now()
 
@@ -93,7 +91,7 @@ const OVERLAY_MATERIAL = new ShaderMaterial({
 	transparent: true,
 })
 
-export class IShatMyselfPass extends Pass {
+export class SmokePass extends Pass {
 	private depthMaterial: MeshDepthMaterial
 	private smokeMaterial: ShaderMaterial
 
@@ -108,8 +106,6 @@ export class IShatMyselfPass extends Pass {
 	public scale3 = 1.0
 	public derivative = 0.4
 	public density = 0.7
-
-	private textureLoader = new TextureLoader()
 
 	public constructor(
 		private scene: Scene,
@@ -160,12 +156,7 @@ export class IShatMyselfPass extends Pass {
 	}
 
 	public async init() {
-		const texture3d = await new Promise<Texture>((resolve) =>
-			this.textureLoader.load('assets/textures/3d-noise.png', (texture) => {
-				texture.colorSpace = LinearSRGBColorSpace
-				resolve(texture)
-			})
-		)
+		const texture3d = await loadTexture('assets/textures/3d-noise.png')
 		this.smokeMaterial.uniforms['texture3d'].value = texture3d
 	}
 
@@ -193,7 +184,7 @@ export class IShatMyselfPass extends Pass {
 		this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position
 		this.smokeMaterial.uniforms.time.value = (Date.now() - startTime) / 10000
 
-		this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map?.texture
+		this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map!.texture
 		this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix
 
 		this.smokeMaterial.uniforms.lightPosition.value = this.light.position.normalize()

@@ -15,7 +15,16 @@ export class Stats {
 
 	public constructor() {
 		this.container = document.createElement('div')
-		this.container.style.cssText = 'position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000'
+		this.container.style.cssText = `
+			position: fixed;
+			bottom: 0px;
+			right: 0px;
+			cursor: pointer;
+			opacity: 0.9;
+			z-index: 10000;
+			width: 80px;
+			height: 48px;
+		`
 		this.container.addEventListener(
 			'click',
 			(event: MouseEvent) => {

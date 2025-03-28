@@ -104,10 +104,10 @@ export class IShatMyselfPass extends Pass {
 
 	private fsQuad: FullScreenQuad
 
-	public scale2 = 4.0
-	public scale3 = 1.0
-	public derivative = 0.4
-	public density = 0.7
+	public scale2 = 2.0
+	public scale3 = 0.2
+	public derivative = 0.05
+	public density = 0.32
 
 	private textureLoader = new TextureLoader()
 
