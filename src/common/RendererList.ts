@@ -14,6 +14,7 @@ export const enum RenderersEnum {
 	step2 = 'Step2',
 	step3 = 'Step3',
 	step4 = 'Step4',
+	step5 = 'Step5',
 	temporalRenderer = 'temporal-renderer',
 	fogRenderer = 'FogRenderer',
 	depth = 'Depth',

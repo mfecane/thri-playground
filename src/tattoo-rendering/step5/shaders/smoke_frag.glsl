@@ -85,7 +85,7 @@ float getWorldShadow(vec3 point) {
 	// shadowRadius 1.0
 	// shadowCoord
 
-	return getShadow(shadowMap, vec2(512.0, 512.0), 1.0, 0.01, 0.2, vDirectionalShadowCoord);
+	return getShadow(shadowMap, vec2(512.0, 512.0), 1.0, 0.0, 0.0, vDirectionalShadowCoord);
 }
 
 float densityFunction(vec3 point) {
