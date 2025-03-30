@@ -9,7 +9,7 @@
 
 varying vec2 vUv;
 
-uniform sampler2D depthTexture;
+uniform sampler2D tDepth;
 uniform sampler2D texture3d;
 uniform sampler2D colorTexture;
 uniform vec2 cameraNearFar;
@@ -28,14 +28,6 @@ uniform mat4 directionalShadowMatrix;
 //#region DEPTH
 
 // code taken from three.js, converts logarythmic depth buffer to an actual distance to scnene surfaces in meters
-
-float getDepth( const in vec2 screenPosition ) {
-	#if DEPTH_PACKING == 1
-		return unpackRGBAToDepth( texture2D( depthTexture, screenPosition ) );
-	#else
-		return texture2D( tDepth, screenPosition ).x;
-	#endif
-}
 
 float getViewZ( const in float depth ) {
 	#if PERSPECTIVE_CAMERA == 1
@@ -189,8 +181,11 @@ vec3 rayNoise(vec3 n) {
 }
 
 void main() {
+	// sample depth and alpha
+	vec4 smpl = texture2D(tDepth, vUv);
 	// closest distance to scene surfaces, extracted from depth buffer, in meters
-    float viewZ = -getViewZ( getDepth( vUv ) );
+	float viewZ = -getViewZ(unpackRGBToDepth(smpl.rgb));
+	float alpha = smpl.a;
 
 	// Set up ray origin and ray direction 
 	vec3 rayOrigin = cameraPosition;

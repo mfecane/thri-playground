@@ -96,7 +96,7 @@ const SmokeShader = {
 
 	uniforms: {
 		colorTexture: { value: null },
-		depthTexture: { value: null },
+		tDepth: { value: null },
 		cameraNearFar: { value: new Vector2(0.5, 0.5) },
 		textureMatrix: { value: null },
 		resolution: { value: null },
@@ -484,13 +484,13 @@ export class Step4 implements Renderer {
 		this.camera.updateMatrix()
 		this.camera.updateMatrixWorld()
 
-		this.smokeMaterial.uniforms['depthTexture'].value = this.depthBuffer.texture
-		this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position
+		this.smokeMaterial.uniforms.tDepth.value = this.depthBuffer.texture
+		this.smokeMaterial.uniforms.cameraPosition.value = this.camera.position
 		this.smokeMaterial.uniforms.time.value = (Date.now() - this.startTime) / 4000
 
 		this.light.shadow.camera.updateProjectionMatrix()
-		this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map!.texture
-		this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix
+		this.smokeMaterial.uniforms.shadowMap.value = this.light.shadow.map!.texture
+		this.smokeMaterial.uniforms.directionalShadowMatrix.value = this.light.shadow.matrix
 
 		this.smokeMaterial.uniforms.lightPosition.value = this.light.position.normalize()
 
@@ -539,7 +539,7 @@ export class Step4 implements Renderer {
 			this.width / this.downSampling,
 			this.height / this.downSampling
 		)
-		
+
 		this.smokeMaterial.uniforms.cameraProjectionMatrixInverse.value = this.camera.projectionMatrixInverse
 	}
 
