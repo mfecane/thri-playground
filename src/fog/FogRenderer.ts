@@ -51,9 +51,6 @@ export class FogRenderer implements Renderer {
 	private light: DirectionalLight
 
 	//@ts-expect-error
-	private camera: PerspectiveCamera
-
-	//@ts-expect-error
 	private orbitControls: OrbitControls
 
 	private animId: number = -1

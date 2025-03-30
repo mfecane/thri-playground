@@ -149,6 +149,16 @@ export class Step4 implements Renderer {
 	 */
 	private depthBuffer: WebGLRenderTarget
 
+	/**
+	 * Smoke buffer
+	 */
+	private smokeBuffer: WebGLRenderTarget
+
+	/**
+	 * Smoke buffer
+	 */
+	private sceneBuffer: WebGLRenderTarget
+
 	private width = window.innerWidth
 
 	private height = window.innerHeight
@@ -216,6 +226,39 @@ export class Step4 implements Renderer {
 		depthWrite: false,
 	})
 
+	private composeMaterial = new ShaderMaterial({
+		uniforms: {
+			smokeBuffer: { value: null },
+			readBuffer: { value: null },
+		},
+
+		vertexShader: `varying vec2 vUv;
+
+		void main() {
+			vUv = uv;
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+		}`,
+
+		fragmentShader: `varying vec2 vUv;
+
+		uniform sampler2D smokeBuffer;
+		uniform sampler2D readBuffer;
+
+		void main() {
+			vec4 smoke = texture2D(smokeBuffer, vUv);
+			// gl_FragColor.rgb = mix(texture2D(readBuffer, vUv).rgb, smoke.rgb, smoke.a);
+			// gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke.rgb * smoke.a;
+			// gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke.rgb * smoke.a;
+			gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke.rgb;
+			gl_FragColor.a = 1.0;
+		}`,
+
+		blending: NoBlending,
+		transparent: false,
+		depthTest: false,
+		depthWrite: false,
+	})
+
 	//@ts-expect-error
 	private mesh: Mesh
 
@@ -224,14 +267,14 @@ export class Step4 implements Renderer {
 
 	private startTime = 0
 
-	// smoke parameters	
+	// smoke parameters
 	public scale2 = 4.0
 
 	public scale3 = 1.0
 
 	public derivative = 0.4
 
-	public density = 0.7
+	public density = 0.1
 
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true })
@@ -243,6 +286,16 @@ export class Step4 implements Renderer {
 		this.depthBuffer.texture.name = 'Depth'
 		this.depthBuffer.texture.generateMipmaps = false
 
+		// TODO resize
+		this.smokeBuffer = new WebGLRenderTarget(this.width / this.downSampling, this.height / this.downSampling)
+		this.smokeBuffer.texture.name = 'Smoke Buffer'
+		this.smokeBuffer.texture.generateMipmaps = false
+
+		// TODO resize
+		this.sceneBuffer = new WebGLRenderTarget(this.width, this.height)
+		this.smokeBuffer.texture.name = 'Scene Buffer'
+		this.smokeBuffer.texture.generateMipmaps = false
+
 		document.body.appendChild(this.stats.container)
 
 		this.gui = new dat.GUI()
@@ -250,7 +303,7 @@ export class Step4 implements Renderer {
 		this.gui.add(this, 'scale2', 0.0, 10.0)
 		this.gui.add(this, 'scale3', 0.0, 1.0)
 		this.gui.add(this, 'derivative', 0.0, 1.0)
-		this.gui.add(this, 'density', 0.0, 1.0)
+		this.gui.add(this, 'density', 0.0, 0.5)
 
 		//@ts-expect-error
 		window.renderer = this.renderer
@@ -263,7 +316,7 @@ export class Step4 implements Renderer {
 
 		document.body.appendChild(this.renderer.domElement)
 
-		this.camera = new PerspectiveCamera(45, this.width / this.height, 0.1, 1000.0)
+		this.camera = new PerspectiveCamera(45, this.width / this.height, 0.1, 10.0)
 
 		this.camera.position.set(2, 0, 2)
 
@@ -274,7 +327,6 @@ export class Step4 implements Renderer {
 		this.scene.add(new AmbientLight(0xffffff, 0.2))
 
 		this.light = new DirectionalLight(this.COLD_COLOR, 2)
-		this.light.position.set(2.0, 1.5, 1.0)
 
 		this.light.castShadow = true
 		this.light.shadow.camera.top = 2.0
@@ -375,8 +427,19 @@ export class Step4 implements Renderer {
 	public async animate() {
 		this.stats.begin()
 
+		// move light
+		let time = performance.now() * 0.002
+		this.light.position.x = Math.sin(time * 0.3) * 3.0
+		this.light.position.y = 1.0
+		this.light.position.z = Math.cos(time * 0.3) * 3.0
+
+		// render scene
+		this.renderer.setRenderTarget(this.sceneBuffer)
+		this.scene.background = new Color(0x000000)
+		this.renderer.render(this.scene, this.camera)
+		this.scene.background = null
+
 		// render depth pass
-		
 		this.scene.background = new Color(0xffffff)
 		this.renderer.setRenderTarget(this.depthBuffer)
 		this.scene.overrideMaterial = this.depthAndAlphaMaterial
@@ -384,13 +447,14 @@ export class Step4 implements Renderer {
 		this.renderer.setClearAlpha(0.0)
 		this.renderer.clear()
 		this.renderer.render(this.scene, this.camera)
+		this.scene.overrideMaterial = null
 		this.scene.background = null
 
 		// test depth buffer
-		this.renderer.setRenderTarget(null)
-		this.renderer.setClearColor(0x000000)
-		this.renderer.setClearAlpha(1.0)
-		this.renderer.clear()
+		// this.renderer.setRenderTarget(null)
+		// this.renderer.setClearColor(0x000000)
+		// this.renderer.setClearAlpha(1.0)
+		// this.renderer.clear()
 
 		// render smoke
 
@@ -409,12 +473,21 @@ export class Step4 implements Renderer {
 		this.smokeMaterial.uniforms.density2.value = this.density
 
 		this.fsQuad.material = this.smokeMaterial
-		this.renderer.setRenderTarget(null)
+		this.renderer.setRenderTarget(this.smokeBuffer)
 		this.renderer.setClearColor(0x000000)
 		this.renderer.setClearAlpha(1.0)
 		this.renderer.clear()
 		this.fsQuad.render(this.renderer)
 
+		// compose and render to screen
+		this.fsQuad.material = this.composeMaterial
+		this.composeMaterial.uniforms.readBuffer.value = this.sceneBuffer.texture
+		this.composeMaterial.uniforms.smokeBuffer.value = this.smokeBuffer.texture
+		this.renderer.setRenderTarget(null)
+		this.renderer.setClearColor(0xff0000)
+		this.renderer.setClearAlpha(1.0)
+		this.renderer.clear()
+		this.fsQuad.render(this.renderer)
 
 		// this.fsQuad.material = this.depthDispayMaterial
 		// this.depthDispayMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)

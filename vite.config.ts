@@ -7,7 +7,7 @@ export default defineConfig({
 	resolve: {
 		alias: [{ find: '@', replacement: '/src' }],
 	},
-	envPrefix: 'TATTOO_',
+	base: '/thri-playground/',
 	server: {
 		host: true,
 		port: 5515,

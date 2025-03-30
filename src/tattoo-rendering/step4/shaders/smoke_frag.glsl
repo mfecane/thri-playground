@@ -130,7 +130,7 @@ bool rayIntersectInfiniteCylinder(vec3 ro, vec3 rd, out float near, out float fa
 
 vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 	vec4 sum = vec4(0.0);
-	float step = min(0.1, depth / float(MAX_STEPS)); // in meters
+	float step = min(0.2, depth / float(MAX_STEPS)); // in meters
 
 	// Add small dither to smooth raymarching layer lines
 	step += rand(vUv) * 0.02;
@@ -151,7 +151,7 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 
 		// If we are stepping into the mesh, we go back and step smaller distance to step exactly to
 		// the surface of the mesh
-		if (dO > depth) {
+		if (dO + step > depth) {
 			step = depth - dO;
 			dO = depth;
 			// break next iteration
@@ -163,7 +163,7 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 		float sample1 = densityFunction(p);
 
 		// If sampled fog density is big enough se are performing marcing to the light to calculate scattered light
-		if (sample1 > 0.05) {
+		if (sample1 > 0.06) {
 			// sample diffuse light derivative
 			// float light = (sample1 - densityFunction(p + derivative * lightPosition)) * 30.0 + 1.0;
 			float light = smoothstep(6.0, 0.0, length(lightPosition - p));
