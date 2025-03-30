@@ -22,7 +22,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { Renderer } from '@/common/Renderer'
-import { IShatMyselfPass } from './IShatMyselfPass'
+import { SmokePass } from '@/tattoo-rendering/step1/SmokePass'
 import * as dat from 'dat.gui'
 
 export class Step1 implements Renderer {
@@ -136,7 +136,7 @@ export class Step1 implements Renderer {
 		this.renderPass = new RenderPass(scene, this.camera)
 		this.composer.addPass(this.renderPass)
 
-		this.pass = new IShatMyselfPass(scene, this.camera, new Vector2(window.innerWidth, window.innerHeight), mainLight)
+		this.pass = new SmokePass(scene, this.camera, new Vector2(window.innerWidth, window.innerHeight), mainLight)
 		await this.pass.init()
 		this.composer.addPass(this.pass)
 

@@ -87,8 +87,15 @@ float Noise3d(in vec3 p) {
 // sample shadow map in current world point
 float getWorldShadow(vec3 point) {
 	vec4 vDirectionalShadowCoord = directionalShadowMatrix * vec4(point, 1.0);
+ 	// shadowMap
+	// shadowMapSize
+	// shadowIntensity 1.0
+	// shadowBias 0.0
+	// shadowRadius 1.0
+	// shadowCoord
+
 	return getShadow(
-		shadowMap, vec2(512.0, 512.0), 0.0, 1.0, vDirectionalShadowCoord
+		shadowMap, vec2(512.0, 512.0), 1.0, 0.0, 1.0, vDirectionalShadowCoord
 	);
 }
 
@@ -124,7 +131,7 @@ bool rayIntersectInfiniteCylinder(vec3 ro, vec3 rd, out float near, out float fa
 vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 	vec4 sum = vec4(0.0);
 	float step = min(0.1, depth / float(MAX_STEPS)); // in meters
-	
+
 	// Add small dither to smooth raymarching layer lines
 	step += rand(vUv) * 0.02;
 
@@ -148,7 +155,7 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 			step = depth - dO;
 			dO = depth;
 			// break next iteration
-			i = MAX_STEPS;
+		 	i = MAX_STEPS;
 		}
 
 		// Calculate current position when we are sam pling fog dencity

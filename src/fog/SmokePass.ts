@@ -14,12 +14,14 @@ import {
 	DirectionalLight,
 	Vector3,
 	AdditiveBlending,
+	Color,
+	LinearSRGBColorSpace,
+	TextureLoader,
 } from 'three'
 import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js'
 
-import depthVert from './shaders/depth_vert.glsl'
-import depthFrag from './shaders/depth_frag.glsl'
-import { loadTexture } from './LoadTexture'
+import smokeVert from '@/fog/shaders/smoke_vert.glsl'
+import smokeFrag from '@/fog/shaders/smoke_frag.glsl'
 
 let startTime = Date.now()
 
@@ -52,12 +54,12 @@ const SmokeShader = {
 		scale2: { value: 0.0 },
 		scale3: { value: 0.0 },
 
-		derivative: { value: null },
+		derivative: { value: 0.0 },
 	},
 
-	vertexShader: depthVert,
+	vertexShader: smokeVert,
 
-	fragmentShader: depthFrag,
+	fragmentShader: smokeFrag,
 }
 
 const OVERLAY_MATERIAL = new ShaderMaterial({
@@ -106,6 +108,8 @@ export class SmokePass extends Pass {
 	public scale3 = 1.0
 	public derivative = 0.4
 	public density = 0.7
+	
+	private textureLoader = new TextureLoader()
 
 	public constructor(
 		private scene: Scene,
@@ -156,7 +160,12 @@ export class SmokePass extends Pass {
 	}
 
 	public async init() {
-		const texture3d = await loadTexture('assets/textures/3d-noise.png')
+		const texture3d = await new Promise<Texture>((resolve) =>
+			this.textureLoader.load('assets/textures/3d-noise.png', (texture) => {
+				texture.colorSpace = LinearSRGBColorSpace
+				resolve(texture)
+			})
+		)
 		this.smokeMaterial.uniforms['texture3d'].value = texture3d
 	}
 
@@ -170,8 +179,10 @@ export class SmokePass extends Pass {
 		//#region render depth
 
 		renderer.setRenderTarget(this.depthBuffer)
+		this.scene.background = new Color(0xffffff)
 		this.scene.overrideMaterial = this.depthMaterial
 		renderer.render(this.scene, this.camera)
+		this.scene.background = null
 		this.scene.overrideMaterial = null
 
 		//#endregion render depth
@@ -179,6 +190,10 @@ export class SmokePass extends Pass {
 		// I think i can do all of this in one step with 2 draw calls, do i?
 
 		//#region render smoke
+
+		// callOnceDelayed(() => {
+		// 	textureToImgElement(this.light.shadow.map!.texture)
+		// })
 
 		this.smokeMaterial.uniforms['depthTexture'].value = this.depthBuffer.texture
 		this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position

@@ -16,7 +16,7 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
-import { IShatMyselfPass } from './IShatMyselfPass'
+import { SmokePass } from './SmokePass'
 import { Renderer } from '@/common/Renderer'
 import { Stats } from '@/common/Stats'
 
@@ -36,7 +36,7 @@ export class FogRenderer implements Renderer {
 	public composer: EffectComposer
 
 	//@ts-expect-error
-	private pass: IShatMyselfPass
+	private pass: SmokePass
 
 	//@ts-expect-error
 	private camera: PerspectiveCamera
@@ -57,6 +57,9 @@ export class FogRenderer implements Renderer {
 	private orbitControls: OrbitControls
 
 	private animId: number = -1
+
+	//@ts-expect-error
+	private gui: dat.GUI
 
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true })
@@ -108,12 +111,7 @@ export class FogRenderer implements Renderer {
 		this.composer = new EffectComposer(this.renderer)
 		this.composer.addPass(new RenderPass(this.scene, this.camera))
 		// composer.addPass(new ShaderPass(GammaCorrectionShader))
-		this.pass = new IShatMyselfPass(
-			this.scene,
-			this.camera,
-			new Vector2(window.innerWidth, window.innerHeight),
-			this.light
-		)
+		this.pass = new SmokePass(this.scene, this.camera, new Vector2(window.innerWidth, window.innerHeight), this.light)
 		this.pass.init()
 		this.composer.addPass(this.pass)
 
@@ -123,11 +121,11 @@ export class FogRenderer implements Renderer {
 		this.stats = new Stats()
 		document.body.appendChild(this.stats.container)
 
-		const gui = new dat.GUI()
-		gui.add(this.pass, 'scale2', 0.0, 10.0)
-		gui.add(this.pass, 'scale3', 0.0, 1.0)
-		gui.add(this.pass, 'derivative', 0.0, 1.0)
-		gui.add(this.pass, 'density', 0.0, 1.0)
+		this.gui = new dat.GUI()
+		this.gui.add(this.pass, 'scale2', 0.0, 10.0)
+		this.gui.add(this.pass, 'scale3', 0.0, 1.0)
+		this.gui.add(this.pass, 'derivative', 0.0, 1.0)
+		this.gui.add(this.pass, 'density', 0.0, 1.0)
 	}
 
 	public async animate() {
@@ -161,5 +159,6 @@ export class FogRenderer implements Renderer {
 		this.renderer.dispose()
 		this.stats.container.remove()
 		this.renderer.domElement.remove()
+		this.gui.destroy()
 	}
 }

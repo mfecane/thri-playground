@@ -74,7 +74,7 @@ const DepthAndAlphaDisplayShader = {
 	fragmentShader: depthFrag,
 }
 
-export class Step3 implements Renderer {
+export class Step4 implements Renderer {
 	/**
 	 * CONSTANTS
 	 */
@@ -336,4 +336,4 @@ export class Step3 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step3, Step3, 'Arm', 'depth and alpha visualization')
+renderersReposditory.register(RenderersEnum.step4, Step4, 'Arm', 'add some fog')
