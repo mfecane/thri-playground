@@ -22,7 +22,8 @@ void main() {
 	float viewZ = -getViewZ(unpackRGBToDepth(smpl.rgb));
 
 	// Add a scale factor for clarity
-	gl_FragColor.rgb = vec3(viewZ / scale);
+	// gl_FragColor.rgb = vec3(viewZ / scale);
+	gl_FragColor.rgb = vec3(smpl.a);
 
-	gl_FragColor.a = smpl.a;
+	gl_FragColor.a = 1.0;
 }

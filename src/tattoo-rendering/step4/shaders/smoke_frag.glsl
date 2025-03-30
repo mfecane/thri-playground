@@ -20,7 +20,6 @@ uniform float time;
 uniform float scale2;
 uniform float scale3;
 uniform vec3 lightPosition;
-uniform float derivative;
 uniform float density2;
 
 uniform sampler2D shadowMap;
@@ -95,7 +94,7 @@ float getWorldShadow(vec3 point) {
 	// shadowCoord
 
 	return getShadow(
-		shadowMap, vec2(512.0, 512.0), 1.0, 0.0, 1.0, vDirectionalShadowCoord
+		shadowMap, vec2(512.0, 512.0), 1.0, 0.0, 0.0, vDirectionalShadowCoord
 	);
 }
 
@@ -130,7 +129,7 @@ bool rayIntersectInfiniteCylinder(vec3 ro, vec3 rd, out float near, out float fa
 
 vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 	vec4 sum = vec4(0.0);
-	float step = min(0.2, depth / float(MAX_STEPS)); // in meters
+	float step = min(0.1, depth / float(MAX_STEPS)); // in meters
 
 	// Add small dither to smooth raymarching layer lines
 	step += rand(vUv) * 0.02;
@@ -163,13 +162,13 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 		float sample1 = densityFunction(p);
 
 		// If sampled fog density is big enough se are performing marcing to the light to calculate scattered light
-		if (sample1 > 0.06) {
+		if (sample1 > 0.05) {
 			// sample diffuse light derivative
 			// float light = (sample1 - densityFunction(p + derivative * lightPosition)) * 30.0 + 1.0;
 			float light = smoothstep(6.0, 0.0, length(lightPosition - p));
 
 			// Simulate lighting color based on distance to the light
-			vec4 col = vec4(mix(vec3(0.2, 0.2, 0.3), vec3(0.6, 1.0, 1.1), light), 1.0);
+			vec4 col = vec4(mix(vec3(0.1, 0.1, 0.1), vec3(0.6, 1.0, 1.1), light), 1.0);
             sum += col * density * step * sample1;
 		}
 

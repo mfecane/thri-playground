@@ -45,7 +45,7 @@ void main() {
 
 	#if DEPTH_PACKING == 3200
 
-		gl_FragColor = vec4( vec3( 1.0 - fragCoordZ ), opacity );
+		gl_FragColor = vec4( vec3( 1.0 - fragCoordZ ), diffuseColor.a );
 
 	#elif DEPTH_PACKING == 3201
 
