@@ -1,0 +1,143 @@
+* {
+	padding: 0;
+	margin: 0;
+	border: 0;
+}
+
+*,
+*:before,
+*:after {
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
+:focus,
+:active {
+	outline: none;
+}
+
+a:focus,
+a:active {
+	outline: none;
+}
+
+nav,
+footer,
+header,
+aside {
+	display: block;
+}
+
+html,
+body {
+	min-height: 100%;
+	width: 100%;
+	font-size: 100%;
+	font-size: 14px;
+	-ms-text-size-adjust: 100%;
+	-moz-text-size-adjust: 100%;
+	-webkit-text-size-adjust: 100%;
+}
+
+input,
+button,
+textarea {
+	font-family: inherit;
+}
+
+input::-ms-clear {
+	display: none;
+}
+
+button {
+	cursor: pointer;
+}
+
+button::-moz-focus-inner {
+	padding: 0;
+	border: 0;
+}
+
+a,
+a:visited {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: none;
+}
+
+ul li {
+	list-style: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-size: inherit;
+	font-weight: inherit;
+}
+
+/* ------------------------------------------------------ */
+
+body {
+	font-family: Lato;
+	font-weight: 400;
+	background-color: rgb(210, 211, 213);
+}
+
+.container {
+	max-width: 800px;
+	margin: auto;
+	padding: 20px;
+}
+
+h1 {
+	font-weight: 600;
+	font-size: 2.6rem;
+	margin-top: 40px;
+	margin-bottom: 20px;
+}
+
+h2 {
+	font-weight: 600;
+	font-size: 2.2rem;
+	margin-top: 20px;
+	margin-bottom: 12px;
+}
+
+ul {
+	margin: 20px 0;
+}
+
+ul li:not(:first-child) {
+	margin-top: 20px;
+}
+
+ul li > a {
+	display: block;
+	margin-bottom: 2px;
+	font-size: 1.5rem;
+}
+
+ul li > p {
+	font-family: Poppins;
+}
+
+a {
+	font-weight: 600;
+	color: rgb(177, 57, 21);
+}
+
+a:hover {
+	color: black;
+}
+
+.me {
+	max-width: 100%;
+	border-radius: 10px;
+}
