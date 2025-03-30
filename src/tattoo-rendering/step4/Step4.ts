@@ -40,6 +40,9 @@ import depthFrag from './shaders/depth_and_alpha_display.frag.glsl'
 import depthAndAlphaVertSource from './shaders/alpha_and_depth.vert.glsl'
 import depthAndAlphaFragSource from './shaders/alpha_and_depth.frag.glsl'
 
+import smokeVert from '@/tattoo-rendering/step4/shaders/smoke_vert.glsl'
+import smokeFrag from '@/tattoo-rendering/step4/shaders/smoke_frag.glsl'
+
 /**
  * Shader for rendering depth and alpha into a texture
  * depth is packed to rgb, and alpha channel
@@ -72,6 +75,43 @@ const DepthAndAlphaDisplayShader = {
 	vertexShader: depthVert,
 
 	fragmentShader: depthFrag,
+}
+
+const SmokeShader = {
+	name: 'SmokeShader',
+
+	defines: {
+		DEPTH_PACKING: 1,
+		PERSPECTIVE_CAMERA: 1,
+		USE_SHADOWMAP: 1,
+	},
+
+	uniforms: {
+		colorTexture: { value: null },
+		depthTexture: { value: null },
+		cameraNearFar: { value: new Vector2(0.5, 0.5) },
+		textureMatrix: { value: null },
+		resolution: { value: null },
+		cameraWorldMatrix: { value: null },
+		cameraProjectionMatrixInverse: { value: null },
+		cameraPosition: { value: null },
+		time: { value: 0 },
+		texture3d: { value: null },
+		lightPosition: { value: null },
+		density2: { value: null },
+
+		// light
+		shadowMap: { value: null },
+		directionalShadowMatrix: { value: null },
+		scale2: { value: 0.0 },
+		scale3: { value: 0.0 },
+
+		derivative: { value: 0.0 },
+	},
+
+	vertexShader: smokeVert,
+
+	fragmentShader: smokeFrag,
 }
 
 export class Step4 implements Renderer {
@@ -164,8 +204,34 @@ export class Step4 implements Renderer {
 		depthWrite: true,
 	})
 
+	private smokeMaterial = new ShaderMaterial({
+		defines: Object.assign({}, SmokeShader.defines),
+
+		uniforms: SmokeShader.uniforms,
+		vertexShader: SmokeShader.vertexShader,
+		fragmentShader: SmokeShader.fragmentShader,
+
+		blending: NoBlending,
+		depthTest: false,
+		depthWrite: false,
+	})
+
 	//@ts-expect-error
 	private mesh: Mesh
+
+	//@ts-expect-error
+	private light: DirectionalLight
+
+	private startTime = 0
+
+	// smoke parameters	
+	public scale2 = 4.0
+
+	public scale3 = 1.0
+
+	public derivative = 0.4
+
+	public density = 0.7
 
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true })
@@ -181,6 +247,10 @@ export class Step4 implements Renderer {
 
 		this.gui = new dat.GUI()
 		this.gui.add(this, 'scale', 0.0, 10.0)
+		this.gui.add(this, 'scale2', 0.0, 10.0)
+		this.gui.add(this, 'scale3', 0.0, 1.0)
+		this.gui.add(this, 'derivative', 0.0, 1.0)
+		this.gui.add(this, 'density', 0.0, 1.0)
 
 		//@ts-expect-error
 		window.renderer = this.renderer
@@ -203,24 +273,24 @@ export class Step4 implements Renderer {
 
 		this.scene.add(new AmbientLight(0xffffff, 0.2))
 
-		const mainLight = new DirectionalLight(this.COLD_COLOR, 2)
-		mainLight.position.set(2.0, 1.5, 1.0)
+		this.light = new DirectionalLight(this.COLD_COLOR, 2)
+		this.light.position.set(2.0, 1.5, 1.0)
 
-		mainLight.castShadow = true
-		mainLight.shadow.camera.top = 2.0
-		mainLight.shadow.camera.bottom = -2.0
-		mainLight.shadow.camera.left = -2.0
-		mainLight.shadow.camera.right = 2.0
-		mainLight.shadow.camera.near = 0.01
-		mainLight.shadow.camera.far = 5.0
+		this.light.castShadow = true
+		this.light.shadow.camera.top = 2.0
+		this.light.shadow.camera.bottom = -2.0
+		this.light.shadow.camera.left = -2.0
+		this.light.shadow.camera.right = 2.0
+		this.light.shadow.camera.near = 0.01
+		this.light.shadow.camera.far = 5.0
 
-		mainLight.shadow.bias = 0.0001
-		mainLight.shadow.mapSize.width = this.SHADOW_MAP_WIDTH
-		mainLight.shadow.mapSize.height = this.SHADOW_MAP_HEIGHT
-		mainLight.shadow.radius = 50
-		mainLight.shadow.blurSamples = 32
+		this.light.shadow.bias = 0.0001
+		this.light.shadow.mapSize.width = this.SHADOW_MAP_WIDTH
+		this.light.shadow.mapSize.height = this.SHADOW_MAP_HEIGHT
+		this.light.shadow.radius = 50
+		this.light.shadow.blurSamples = 32
 
-		lightGroup.add(mainLight)
+		lightGroup.add(this.light)
 
 		this.scene.add(lightGroup)
 
@@ -282,18 +352,39 @@ export class Step4 implements Renderer {
 		// window.setTimeout(() => {
 		// 	dumpShaderProgram(this.renderer, this.depthAndAlphaMaterial)
 		// }, 2000)
+
+		this.smokeMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
+		this.smokeMaterial.uniforms.resolution.value = new Vector2(
+			this.width / this.downSampling,
+			this.height / this.downSampling
+		)
+		this.smokeMaterial.uniforms.cameraWorldMatrix.value = this.camera.matrixWorld
+		this.smokeMaterial.uniforms.cameraProjectionMatrixInverse.value = this.camera.projectionMatrixInverse.clone()
+
+		const texture3d = await new Promise<Texture>((resolve) =>
+			this.textureLoader.load('assets/textures/3d-noise.png', (texture) => {
+				texture.colorSpace = LinearSRGBColorSpace
+				resolve(texture)
+			})
+		)
+		this.smokeMaterial.uniforms['texture3d'].value = texture3d
+
+		this.startTime = Date.now()
 	}
 
 	public async animate() {
 		this.stats.begin()
 
 		// render depth pass
+		
+		this.scene.background = new Color(0xffffff)
 		this.renderer.setRenderTarget(this.depthBuffer)
 		this.scene.overrideMaterial = this.depthAndAlphaMaterial
 		this.renderer.setClearColor(0x000000)
 		this.renderer.setClearAlpha(0.0)
 		this.renderer.clear()
 		this.renderer.render(this.scene, this.camera)
+		this.scene.background = null
 
 		// test depth buffer
 		this.renderer.setRenderTarget(null)
@@ -301,12 +392,36 @@ export class Step4 implements Renderer {
 		this.renderer.setClearAlpha(1.0)
 		this.renderer.clear()
 
-		this.fsQuad.material = this.depthDispayMaterial
-		this.depthDispayMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
-		this.depthDispayMaterial.uniforms.tDepth.value = this.depthBuffer.texture
-		this.depthDispayMaterial.uniforms.scale.value = this.scale
+		// render smoke
 
+		this.smokeMaterial.uniforms['depthTexture'].value = this.depthBuffer.texture
+		this.smokeMaterial.uniforms['cameraPosition'].value = this.camera.position
+		this.smokeMaterial.uniforms.time.value = (Date.now() - this.startTime) / 10000
+
+		this.smokeMaterial.uniforms['shadowMap'].value = this.light.shadow.map!.texture
+		this.smokeMaterial.uniforms['directionalShadowMatrix'].value = this.light.shadow.matrix
+
+		this.smokeMaterial.uniforms.lightPosition.value = this.light.position.normalize()
+		this.smokeMaterial.uniforms.derivative.value = this.derivative
+
+		this.smokeMaterial.uniforms.scale2.value = this.scale2
+		this.smokeMaterial.uniforms.scale3.value = this.scale3
+		this.smokeMaterial.uniforms.density2.value = this.density
+
+		this.fsQuad.material = this.smokeMaterial
+		this.renderer.setRenderTarget(null)
+		this.renderer.setClearColor(0x000000)
+		this.renderer.setClearAlpha(1.0)
+		this.renderer.clear()
 		this.fsQuad.render(this.renderer)
+
+
+		// this.fsQuad.material = this.depthDispayMaterial
+		// this.depthDispayMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
+		// this.depthDispayMaterial.uniforms.tDepth.value = this.depthBuffer.texture
+		// this.depthDispayMaterial.uniforms.scale.value = this.scale
+
+		// this.fsQuad.render(this.renderer)
 
 		this.orbitControls.update()
 
