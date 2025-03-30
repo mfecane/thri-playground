@@ -22,6 +22,8 @@ import {
 	ShaderMaterial,
 	NormalBlending,
 	AdditiveBlending,
+	Material,
+	Matrix3,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
@@ -29,13 +31,37 @@ import { Renderer } from '@/common/Renderer'
 import * as dat from 'dat.gui'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { Stats } from '@/common/Stats'
+import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
+import { dumpShaderProgram } from '@/common/ThreeUtils'
 
 import depthVert from './shaders/depth_vert.glsl'
 import depthFrag from './shaders/depth_frag.glsl'
-import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
 
-const DepthShader = {
-	name: 'DepthShader',
+import depthAndAlphaVertSource from './shaders/alpha_and_depth.vert.glsl'
+import depthAndAlphaFragSource from './shaders/alpha_and_depth.frag.glsl'
+
+/**
+ * Shader for rendering depth and alpha into a texture
+ * depth is packed to rgb, and alpha channel
+ */
+const DepthAndAlphaShader = {
+	name: 'DepthAndAlphaShader',
+
+	uniforms: {
+		map: { value: null },
+		mapTransform: { value: new Matrix3() },
+	},
+
+	vertexShader: depthAndAlphaVertSource,
+
+	fragmentShader: depthAndAlphaFragSource,
+}
+
+/**
+ * Shader for rendering depth+alpha texture, where depth is packed to RGB channel, alpha is A channel
+ */
+const DepthAndAlphaDisplayShader = {
+	name: 'DepthAndAlphaDisplayShader',
 
 	uniforms: {
 		tDepth: { value: null },
@@ -62,9 +88,6 @@ export class Step3 implements Renderer {
 	public renderer: WebGLRenderer
 
 	//@ts-expect-error
-	private pass: IShatMyselfPass
-
-	//@ts-expect-error
 	private orbitControls: OrbitControls
 
 	private textureLoader = new TextureLoader()
@@ -73,8 +96,6 @@ export class Step3 implements Renderer {
 	private camera: PerspectiveCamera
 
 	private animId: number = -1
-
-	private depthMaterial: MeshDepthMaterial
 
 	private scene = new Scene()
 
@@ -112,10 +133,10 @@ export class Step3 implements Renderer {
 		defines: {
 			PERSPECTIVE_CAMERA: 1,
 		},
-		
-		uniforms: DepthShader.uniforms,
-		vertexShader: DepthShader.vertexShader,
-		fragmentShader: DepthShader.fragmentShader,
+
+		uniforms: DepthAndAlphaDisplayShader.uniforms,
+		vertexShader: DepthAndAlphaDisplayShader.vertexShader,
+		fragmentShader: DepthAndAlphaDisplayShader.fragmentShader,
 
 		// These goes only in pair
 		transparent: true,
@@ -125,17 +146,32 @@ export class Step3 implements Renderer {
 		depthWrite: false,
 	})
 
+	private depthAndAlphaMaterial = new ShaderMaterial({
+		defines: {
+			PERSPECTIVE_CAMERA: 1,
+			DEPTH_PACKING: 3202,
+		},
+
+		uniforms: DepthAndAlphaShader.uniforms,
+		vertexShader: DepthAndAlphaShader.vertexShader,
+		fragmentShader: DepthAndAlphaShader.fragmentShader,
+
+		// These goes only in pair
+		transparent: true,
+		blending: NormalBlending,
+
+		depthTest: true,
+		depthWrite: true,
+	})
+
+	//@ts-expect-error
+	private mesh: Mesh
+
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true })
 		this.renderer.autoClear = false
 		this.renderer.shadowMap.enabled = true
 		this.renderer.shadowMap.type = PCFShadowMap
-
-		this.depthMaterial = new MeshDepthMaterial()
-		this.depthMaterial.side = DoubleSide
-		//@ts-expect-error
-		this.depthMaterial.depthPacking = 3202 // RGBDepthPacking
-		this.depthMaterial.blending = NoBlending
 
 		this.depthBuffer = new WebGLRenderTarget(this.width / this.downSampling, this.height / this.downSampling)
 		this.depthBuffer.texture.name = 'Depth'
@@ -145,6 +181,9 @@ export class Step3 implements Renderer {
 
 		this.gui = new dat.GUI()
 		this.gui.add(this, 'scale', 0.0, 10.0)
+
+		//@ts-expect-error
+		window.renderer = this.renderer
 	}
 
 	// private gui: dat.GUI
@@ -191,13 +230,13 @@ export class Step3 implements Renderer {
 
 		const textureLoader = new TextureLoader()
 
-		const mesh = await new Promise<Mesh>((resolve) => {
+		this.mesh = await new Promise<Mesh>((resolve) => {
 			loader.load('assets/models/arm/arm.fbx', (loaded) => resolve(loaded.children[0] as Mesh))
 		})
 
-		mesh.scale.set(0.1, 0.1, 0.1)
-		mesh.castShadow = true
-		mesh.receiveShadow = true
+		this.mesh.scale.set(0.1, 0.1, 0.1)
+		this.mesh.castShadow = true
+		this.mesh.receiveShadow = true
 
 		this.colorMap = await new Promise<Texture>((resolve) => {
 			textureLoader.load('assets/models/arm/diffuse.png', (loaded) => resolve(loaded))
@@ -229,12 +268,20 @@ export class Step3 implements Renderer {
 		material.sheenRoughness = 0.2
 		material.sheenColor = new Color(0xffffff)
 
-		mesh.material = material
+		this.mesh.material = material
 
-		this.depthMaterial.map = this.colorMap
-		this.depthMaterial.transparent = true
+		// this.depthMaterial.map = this.colorMap
+		// this.depthMaterial.transparent = true
 
-		this.scene.add(mesh)
+		// this.depthMaterial2.map = this.colorMap
+		this.depthAndAlphaMaterial.uniforms.map.value = this.colorMap
+
+		this.scene.add(this.mesh)
+
+		// some debug
+		// window.setTimeout(() => {
+		// 	dumpShaderProgram(this.renderer, this.depthAndAlphaMaterial)
+		// }, 2000)
 	}
 
 	public async animate() {
@@ -242,7 +289,7 @@ export class Step3 implements Renderer {
 
 		// render depth pass
 		this.renderer.setRenderTarget(this.depthBuffer)
-		this.scene.overrideMaterial = this.depthMaterial
+		this.scene.overrideMaterial = this.depthAndAlphaMaterial
 		this.renderer.setClearColor(0x000000)
 		this.renderer.setClearAlpha(0.0)
 		this.renderer.clear()
@@ -250,7 +297,7 @@ export class Step3 implements Renderer {
 
 		// test depth buffer
 		this.renderer.setRenderTarget(null)
-		this.renderer.setClearColor(0x330000)
+		this.renderer.setClearColor(0x000000)
 		this.renderer.setClearAlpha(1.0)
 		this.renderer.clear()
 

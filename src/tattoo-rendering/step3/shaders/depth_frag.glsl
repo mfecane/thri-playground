@@ -7,10 +7,6 @@ uniform float scale;
 
 uniform vec2 cameraNearFar;
 
-float getDepth() {
-	return unpackRGBToDepth(texture2D(tDepth, vUv).rgb);
-}
-
 float getViewZ(const in float depth) {
 	#if PERSPECTIVE_CAMERA == 1
 	return perspectiveDepthToViewZ(depth, cameraNearFar.x, cameraNearFar.y);
@@ -21,12 +17,12 @@ float getViewZ(const in float depth) {
 
 void main() {
 	// closest distance to scene surfaces, extracted from depth buffer, in meters
-	float viewZ = -getViewZ(getDepth());
+	vec4 smpl = texture2D(tDepth, vUv);
+
+	float viewZ = -getViewZ(unpackRGBToDepth(smpl.rgb));
 
 	// Add a scale factor for clarity
-	// gl_FragColor.rgb = vec3(viewZ / scale);
+	gl_FragColor.rgb = vec3(viewZ / scale);
 
-	gl_FragColor = texture2D(tDepth, vUv).rgba;
-
-	// gl_FragColor.a = 1.0;
+	gl_FragColor.a = smpl.a;
 }
