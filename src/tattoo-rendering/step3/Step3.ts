@@ -20,6 +20,8 @@ import {
 	NoBlending,
 	WebGLRenderTarget,
 	ShaderMaterial,
+	NormalBlending,
+	AdditiveBlending,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
@@ -110,26 +112,30 @@ export class Step3 implements Renderer {
 		defines: {
 			PERSPECTIVE_CAMERA: 1,
 		},
+		
 		uniforms: DepthShader.uniforms,
 		vertexShader: DepthShader.vertexShader,
 		fragmentShader: DepthShader.fragmentShader,
-		blending: NoBlending,
+
+		// These goes only in pair
+		transparent: true,
+		blending: NormalBlending,
+
 		depthTest: false,
 		depthWrite: false,
 	})
 
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true })
+		this.renderer.autoClear = false
 		this.renderer.shadowMap.enabled = true
 		this.renderer.shadowMap.type = PCFShadowMap
 
 		this.depthMaterial = new MeshDepthMaterial()
 		this.depthMaterial.side = DoubleSide
 		//@ts-expect-error
-		this.depthMaterial.depthPacking = 3202
+		this.depthMaterial.depthPacking = 3202 // RGBDepthPacking
 		this.depthMaterial.blending = NoBlending
-
-		this.scene.background = new Color(0.05, 0.05, 0.07)
 
 		this.depthBuffer = new WebGLRenderTarget(this.width / this.downSampling, this.height / this.downSampling)
 		this.depthBuffer.texture.name = 'Depth'
@@ -145,12 +151,6 @@ export class Step3 implements Renderer {
 
 	public async init() {
 		this.renderer.setSize(this.width, this.height)
-
-		this.renderer.setClearColor(0x000000)
-
-		this.renderer.setClearAlpha(1.0)
-
-		this.renderer.autoClear = false
 
 		document.body.appendChild(this.renderer.domElement)
 
@@ -231,38 +231,41 @@ export class Step3 implements Renderer {
 
 		mesh.material = material
 
-		// this.depthMaterial.map = this.colorMap
+		this.depthMaterial.map = this.colorMap
+		this.depthMaterial.transparent = true
 
 		this.scene.add(mesh)
 	}
 
 	public async animate() {
-		try {
-			this.stats.begin()
+		this.stats.begin()
 
-			// render depth pass
-			this.renderer.setRenderTarget(this.depthBuffer)
-			this.scene.overrideMaterial = this.depthMaterial
-			this.renderer.clear()
-			this.renderer.render(this.scene, this.camera)
+		// render depth pass
+		this.renderer.setRenderTarget(this.depthBuffer)
+		this.scene.overrideMaterial = this.depthMaterial
+		this.renderer.setClearColor(0x000000)
+		this.renderer.setClearAlpha(0.0)
+		this.renderer.clear()
+		this.renderer.render(this.scene, this.camera)
 
-			// test depth buffer
-			this.renderer.setRenderTarget(null)
-			this.fsQuad.material = this.depthDispayMaterial
-			this.depthDispayMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
-			this.depthDispayMaterial.uniforms.tDepth.value = this.depthBuffer.texture
-			this.depthDispayMaterial.uniforms.scale.value = this.scale
+		// test depth buffer
+		this.renderer.setRenderTarget(null)
+		this.renderer.setClearColor(0x330000)
+		this.renderer.setClearAlpha(1.0)
+		this.renderer.clear()
 
-			this.fsQuad.render(this.renderer)
+		this.fsQuad.material = this.depthDispayMaterial
+		this.depthDispayMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
+		this.depthDispayMaterial.uniforms.tDepth.value = this.depthBuffer.texture
+		this.depthDispayMaterial.uniforms.scale.value = this.scale
 
-			this.orbitControls.update()
+		this.fsQuad.render(this.renderer)
 
-			this.animId = requestAnimationFrame(async () => await this.animate())
+		this.orbitControls.update()
 
-			this.stats.end()
-		} catch (error) {
-			console.error(error)
-		}
+		this.animId = requestAnimationFrame(async () => await this.animate())
+
+		this.stats.end()
 	}
 
 	public async onResize(width: number, height: number) {

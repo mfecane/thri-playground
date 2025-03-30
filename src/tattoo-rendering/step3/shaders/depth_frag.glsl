@@ -24,9 +24,9 @@ void main() {
 	float viewZ = -getViewZ(getDepth());
 
 	// Add a scale factor for clarity
-	gl_FragColor.rgb = vec3(viewZ / scale);
+	// gl_FragColor.rgb = vec3(viewZ / scale);
 
-	// gl_FragColor.rgb = texture2D(tDepth, vUv).rgb;
+	gl_FragColor = texture2D(tDepth, vUv).rgba;
 
-	gl_FragColor.a = 1.0;
+	// gl_FragColor.a = 1.0;
 }
