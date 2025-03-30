@@ -29,11 +29,11 @@ uniform mat4 directionalShadowMatrix;
 
 // code taken from three.js, converts logarythmic depth buffer to an actual distance to scnene surfaces in meters
 
-float getViewZ( const in float depth ) {
+float getViewZ(const in float depth) {
 	#if PERSPECTIVE_CAMERA == 1
-		return perspectiveDepthToViewZ( depth, cameraNearFar.x, cameraNearFar.y );
+	return perspectiveDepthToViewZ(depth, cameraNearFar.x, cameraNearFar.y);
 	#else
-		return orthographicDepthToViewZ( depth, cameraNearFar.x, cameraNearFar.y );
+	return orthographicDepthToViewZ(depth, cameraNearFar.x, cameraNearFar.y);
 	#endif
 }
 
@@ -41,7 +41,7 @@ float getViewZ( const in float depth ) {
 
 //#region NOISE
 
-float rand(vec2 n) { 
+float rand(vec2 n) {
 	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
 }
 
@@ -55,7 +55,7 @@ vec3 sampleNoise3d(vec3 p) {
 	float row = floor(yIndex / size);
 	float col = floor(yIndex - row * size);
 	vec2 uv2 = (vec2(col, row) + p2.xy) / size;
-    return texture(texture3d, uv2).rgb;
+	return texture(texture3d, uv2).rgb;
 }
 
 float Noise3d(in vec3 p) {
@@ -70,7 +70,7 @@ float Noise3d(in vec3 p) {
 	// float noise = sampleNoise3d(p / scale2) *
 	// 	sampleNoise3d(p.yzx / scale2) *
 	// 	sampleNoise3d(p.zxy / scale2);
-    return noise;
+	return noise;
 }
 
 //#endregion NOISE
@@ -85,9 +85,7 @@ float getWorldShadow(vec3 point) {
 	// shadowRadius 1.0
 	// shadowCoord
 
-	return getShadow(
-		shadowMap, vec2(512.0, 512.0), 1.0, 0.0, 0.0, vDirectionalShadowCoord
-	);
+	return getShadow(shadowMap, vec2(512.0, 512.0), 1.0, 0.0, 0.0, vDirectionalShadowCoord);
 }
 
 float densityFunction(vec3 point) {
@@ -100,7 +98,7 @@ float densityFunction(vec3 point) {
 	density *= getWorldShadow(point);
 	// falloff
 	// density *= smoothstep(3.0, 0.0, length(point));
-    return density;
+	return density;
 }
 
 bool rayIntersectInfiniteCylinder(vec3 ro, vec3 rd, out float near, out float far) {
@@ -110,43 +108,47 @@ bool rayIntersectInfiniteCylinder(vec3 ro, vec3 rd, out float near, out float fa
 	float a = dot(rdp, rdp);
 	float c = dot(rop, rop) - 6.0; // r squared
 	float det = b * b - a * c;
-	if (det > 0.0) {
+	if(det > 0.0) {
 		float detsqrt = sqrt(det);
-		near = (-b - detsqrt) /  a;
-		far = (-b + detsqrt) /  a;
+		near = (-b - detsqrt) / a;
+		far = (-b + detsqrt) / a;
 		return far > 0.0;
 	}
 	return false;
 }
 
-vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
+vec4 volumetricMarch(vec3 ro, vec3 rd, float depth, float alpha) {
 	vec4 sum = vec4(0.0);
-	float step = min(0.1, depth / float(MAX_STEPS)); // in meters
+	float step = 0.1; // in meters
 
 	// Add small dither to smooth raymarching layer lines
 	step += rand(vUv) * 0.02;
 
 	// Controls overall density of ther fog, extracted to a parameter
 	float density = density2;
-	
+
 	// Parameters for cylinder intersection calclulation
 	float near = 0.0, far = 0.0;
-	
+
 	// Limit fog effect to infinite vertical cylinder
-	if (!rayIntersectInfiniteCylinder(ro, rd, near, far)) {
+	if(!rayIntersectInfiniteCylinder(ro, rd, near, far)) {
 		return vec4(0.0);
 	}
+
+// accumulate using this coeff inside the mesh
+	float transparent_accumulate_factor = 1.0;
 
 	float dO = max(0.0, near);
 	for(int i = 0; i < MAX_STEPS; i++) {
 
 		// If we are stepping into the mesh, we go back and step smaller distance to step exactly to
 		// the surface of the mesh
-		if (dO + step > depth) {
-			step = depth - dO;
-			dO = depth;
+		if(dO + step > depth) {
+			// step = depth - dO;
+			// dO = depth;
 			// break next iteration
-		 	i = MAX_STEPS;
+		 	// i = MAX_STEPS;
+			transparent_accumulate_factor = 1.0 - alpha;
 		}
 
 		// Calculate current position when we are sam pling fog dencity
@@ -154,21 +156,21 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 		float sample1 = densityFunction(p);
 
 		// If sampled fog density is big enough se are performing marcing to the light to calculate scattered light
-		if (sample1 > 0.05) {
+		if(sample1 > 0.06) {
 			// sample diffuse light derivative
 			// float light = (sample1 - densityFunction(p + derivative * lightPosition)) * 30.0 + 1.0;
 			float light = smoothstep(6.0, 0.0, length(lightPosition - p));
 
 			// Simulate lighting color based on distance to the light
 			vec4 col = vec4(mix(vec3(0.1, 0.1, 0.1), vec3(0.6, 1.0, 1.1), light), 1.0);
-            sum += col * density * step * sample1;
+			sum += col * density * step * sample1 * transparent_accumulate_factor;
 		}
 
 		// Perform step
 		dO += step;
 
 		// Exit stepping loop
-		if (dO > MAX_DIST || sum.a > 0.9 || dO > far) {
+		if(dO > MAX_DIST || sum.a > 0.9 || dO > far) {
 			break;
 		}
 	}
@@ -177,25 +179,29 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float depth) {
 
 vec3 rayNoise(vec3 n) {
 	float scale = 0.01;
-	return scale * (vec3(rand(n.xy), rand(n.yz), rand(n.zx)) - vec3(0.5)); 
+	return scale * (vec3(rand(n.xy), rand(n.yz), rand(n.zx)) - vec3(0.5));
 }
 
 void main() {
 	// sample depth and alpha
 	vec4 smpl = texture2D(tDepth, vUv);
+	float alpha = smpl.a;
 	// closest distance to scene surfaces, extracted from depth buffer, in meters
 	float viewZ = -getViewZ(unpackRGBToDepth(smpl.rgb));
-	float alpha = smpl.a;
+
+	if(alpha < 0.01) {
+		viewZ = cameraNearFar.y;
+	}
 
 	// Set up ray origin and ray direction 
 	vec3 rayOrigin = cameraPosition;
-	vec2 screenPos = ( gl_FragCoord.xy * 2.0 - resolution ) / resolution;
-	vec4 ndcRay = vec4( screenPos.xy, 1.0, 1.0 );
-	vec3 rayDirection = ( cameraWorldMatrix * cameraProjectionMatrixInverse * ndcRay ).xyz;
+	vec2 screenPos = (gl_FragCoord.xy * 2.0 - resolution) / resolution;
+	vec4 ndcRay = vec4(screenPos.xy, 1.0, 1.0);
+	vec3 rayDirection = (cameraWorldMatrix * cameraProjectionMatrixInverse * ndcRay).xyz;
 
 	// antialias dithering
 	rayDirection += rayNoise(rayDirection);
 
 	// get final fog color to overlay over original scene
-	gl_FragColor = volumetricMarch(rayOrigin, rayDirection, viewZ);
+	gl_FragColor = volumetricMarch(rayOrigin, rayDirection, viewZ, alpha);
 }

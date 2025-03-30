@@ -31,6 +31,9 @@ import {
 	AxesHelper,
 	PlaneGeometry,
 	Vector3,
+	BackSide,
+	FrontSide,
+	MeshBasicMaterial,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
@@ -250,21 +253,23 @@ export class Step4 implements Renderer {
 			vec4 smoke = texture2D(smokeBuffer, vUv);
 			vec4 scene = texture2D(readBuffer, vUv);
 			// gl_FragColor.rgb = mix(texture2D(readBuffer, vUv).rgb, smoke.rgb, smoke.a);
-			// gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke.rgb * smoke.a;
-			// gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke.rgb * smoke.a;
-			gl_FragColor.rgb = texture2D(readBuffer, vUv).rgb + smoke.rgb;
-			// gl_FragColor.rgb =  smoke.rgb;
-			gl_FragColor.a = 1.0;
+			gl_FragColor.rgb = scene.rgb + smoke.rgb;
+			// gl_FragColor.rgb = scene.rgb;
+			gl_FragColor.a = scene.a;
 		}`,
 
-		blending: NoBlending,
-		transparent: false,
+		blending: NormalBlending,
+		transparent: true,
+
 		depthTest: false,
 		depthWrite: false,
 	})
 
 	//@ts-expect-error
 	private mesh: Mesh
+
+	//@ts-expect-error
+	private backsideMesh: Mesh
 
 	//@ts-expect-error
 	private light: DirectionalLight
@@ -277,6 +282,22 @@ export class Step4 implements Renderer {
 	public scale3 = 1.0
 
 	public density = 0.4
+
+	private physicalMaterial = new MeshPhysicalMaterial({
+		side: FrontSide,
+		depthTest: true,
+		transparent: true,
+		sheen: 0.1,
+		sheenRoughness: 0.2,
+		sheenColor: new Color(0xffffff),
+	})
+
+	private backsideMaterial = new MeshBasicMaterial({
+		colorWrite: false,
+		// color: 0xffffff,
+		depthWrite: true,
+		side: BackSide,
+	})
 
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true, premultipliedAlpha: false })
@@ -335,7 +356,7 @@ export class Step4 implements Renderer {
 
 		this.light = new DirectionalLight(this.COLD_COLOR, 2)
 
-		// this.light.position.set(0, 2, 3)
+		this.light.position.set(3, 2, 3)
 
 		this.light.castShadow = true
 		this.light.shadow.camera.top = 1.0
@@ -400,27 +421,25 @@ export class Step4 implements Renderer {
 
 		armNormalTexture.colorSpace = LinearSRGBColorSpace
 
-		const material = new MeshPhysicalMaterial()
+		this.physicalMaterial.map = this.colorMap
+		this.physicalMaterial.normalMap = armNormalTexture
+		this.physicalMaterial.roughnessMap = armOccMetRoughTexture
+		this.physicalMaterial.metalnessMap = armOccMetRoughTexture
 
-		material.depthTest = true
-		material.transparent = true
-		material.map = this.colorMap
-		material.normalMap = armNormalTexture
-		material.roughnessMap = armOccMetRoughTexture
-		material.metalnessMap = armOccMetRoughTexture
-		material.sheen = 0.1
-		material.sheenRoughness = 0.2
-		material.sheenColor = new Color(0xffffff)
+		this.mesh.material = this.physicalMaterial
+		this.mesh.renderOrder = 2
 
-		this.mesh.material = material
+		this.backsideMesh = this.mesh.clone()
+		this.backsideMesh.renderOrder = 1
+		this.backsideMesh.material = this.backsideMaterial
+		this.backsideMesh.castShadow = false
+		this.backsideMesh.receiveShadow= false
 
-		// this.depthMaterial.map = this.colorMap
-		// this.depthMaterial.transparent = true
-
-		// this.depthMaterial2.map = this.colorMap
 		this.depthAndAlphaMaterial.uniforms.map.value = this.colorMap
 
 		this.scene.add(this.mesh)
+
+		this.scene.add(this.backsideMesh)
 
 		this.smokeMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
 		this.smokeMaterial.uniforms.resolution.value = new Vector2(
@@ -450,10 +469,10 @@ export class Step4 implements Renderer {
 		this.stats.begin()
 
 		// move light
-		let time = performance.now() * 0.002
-		this.light.position.x = Math.sin(time * 0.3) * 2.0
-		this.light.position.y = 0.66
-		this.light.position.z = Math.cos(time * 0.3) * 2.0
+		// let time = performance.now() * 0.002
+		// this.light.position.x = Math.sin(time * 0.1) * 2.0
+		// this.light.position.y = 0.66
+		// this.light.position.z = Math.cos(time * 0.1) * 2.0
 
 		// render scene
 		this.renderer.setRenderTarget(this.sceneBuffer)
@@ -471,7 +490,7 @@ export class Step4 implements Renderer {
 		this.scene.overrideMaterial = null
 		this.scene.background = null
 
-		// test depth rendering
+		// // test depth rendering
 		// this.fsQuad.material = this.depthDispayMaterial
 		// this.depthDispayMaterial.uniforms.cameraNearFar.value.set(this.camera.near, this.camera.far)
 		// this.depthDispayMaterial.uniforms.tDepth.value = this.depthBuffer.texture
@@ -506,11 +525,12 @@ export class Step4 implements Renderer {
 		this.fsQuad.render(this.renderer)
 
 		// compose and render to screen
+
 		this.fsQuad.material = this.composeMaterial
 		this.composeMaterial.uniforms.readBuffer.value = this.sceneBuffer.texture
 		this.composeMaterial.uniforms.smokeBuffer.value = this.smokeBuffer.texture
 		this.renderer.setRenderTarget(null)
-		this.renderer.setClearColor(0xff0000)
+		this.renderer.setClearColor(0xffffff)
 		this.renderer.setClearAlpha(1.0)
 		this.renderer.clear()
 		this.fsQuad.render(this.renderer)
