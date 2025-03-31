@@ -17,8 +17,7 @@ uniform vec2 resolution;
 uniform mat4 cameraWorldMatrix;
 uniform mat4 cameraProjectionMatrixInverse;
 uniform float time;
-uniform float scale2;
-uniform float scale3;
+uniform float noise3dScale;
 uniform vec3 lightPosition;
 uniform float density2;
 
@@ -48,7 +47,7 @@ float rand(vec2 n) {
 // samples from -1 to 1
 // samples noise 3d texture
 vec3 sampleNoise3d(vec3 p) {
-	vec3 pp = p / scale2;
+	vec3 pp = p / noise3dScale;
 	vec3 p2 = fract((pp + vec3(1.0)) / 2.0);
 	float size = TEXTURE_SIZE_3D;
 	float yIndex = p2.z * (size * size - 1.0);
@@ -61,7 +60,7 @@ vec3 sampleNoise3d(vec3 p) {
 float Noise3d(in vec3 p) {
 	// move noise over time to create fog moving effect
 	vec3 shift = vec3(1.213 * sin(iTime / 4.0), 2.312 * cos(iTime / 5.341 + 7.145), 0.312 * cos(iTime / 7.1234 + 3.145));
-	vec3 samplePoint = p + scale3 * (sampleNoise3d(p / 4.0 + shift));
+	vec3 samplePoint = p + (sampleNoise3d(p + shift));
 
 	// combine red green and blue channels in 3d noise texture by swizzling coordinate for more smooth noise
 	float noise = sampleNoise3d(samplePoint).r * sampleNoise3d(samplePoint.yzx).g * sampleNoise3d(samplePoint.zxy).b;
@@ -159,7 +158,8 @@ vec4 volumetricMarch(vec3 ro, vec3 rd, float depth, float alpha) {
 		if(sample1 > 0.06) {
 			// sample diffuse light derivative
 			// float light = (sample1 - densityFunction(p + derivative * lightPosition)) * 30.0 + 1.0;
-			float light = smoothstep(6.0, 0.0, length(lightPosition - p));
+			
+			float light = smoothstep(20.0, 0.0, distance(lightPosition * 10.0, p));
 
 			// Simulate lighting color based on distance to the light
 			vec4 col = vec4(mix(vec3(0.1, 0.1, 0.1), vec3(0.6, 1.0, 1.1), light), 1.0);

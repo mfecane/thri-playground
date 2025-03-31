@@ -98,7 +98,7 @@ float densityFunction(vec3 point) {
 	density *= getWorldShadow(point);
 	// falloff
 	// density *= smoothstep(3.0, 0.0, length(point));
-	return density;
+	return density - 0.01;
 }
 
 bool rayIntersectInfiniteCylinder(vec3 ro, vec3 rd, out float near, out float far) {

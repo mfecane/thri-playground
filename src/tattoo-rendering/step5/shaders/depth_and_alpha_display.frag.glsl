@@ -23,7 +23,7 @@ void main() {
 
 	// Add a scale factor for clarity
 	// gl_FragColor.rgb = vec3(viewZ / scale);
-	gl_FragColor.rgb = vec3(smpl.a);
+	gl_FragColor.rgb = vec3(smpl.rgb);
 
 	gl_FragColor.a = 1.0;
 }
