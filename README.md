@@ -27,3 +27,18 @@ Random three.js shit
 # NOTES
 
 ## Sampling
+
+# Reference
+
+        Hag's arm Artstation
+
+# Ideas
+
+        REnder three sphers with different radiuses for parallax effect
+
+# Arm reference plan
+
+        Subsurface
+        Transparency
+        3x Spheres
+        Particles

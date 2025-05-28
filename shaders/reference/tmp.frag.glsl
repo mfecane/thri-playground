@@ -32,14 +32,14 @@ precision highp float;
 	
 #define HIGH_PRECISION
 #define SHADER_TYPE ShaderMaterial
-#define SHADER_NAME 
-#define PERSPECTIVE_CAMERA 1
-#define DEPTH_PACKING 3202
+#define SHADER_NAME BackgroundCubeMaterial
+#define FLIP_SIDED
 #define USE_SHADOWMAP
 #define SHADOWMAP_TYPE_PCF
 uniform mat4 viewMatrix;
 uniform vec3 cameraPosition;
 uniform bool isOrthographic;
+#define OPAQUE
 vec4 LinearTransferOETF( in vec4 value ) {
 	return value;
 }
@@ -57,364 +57,162 @@ float luminance( const in vec3 rgb ) {
 	return dot( weights, rgb );
 }
 
-#define USE_MAP 1
+#ifdef ENVMAP_TYPE_CUBE
 
-#if DEPTH_PACKING == 3200
+uniform samplerCube envMap;
 
-	uniform float opacity;
+#elif defined( ENVMAP_TYPE_CUBE_UV )
+
+uniform sampler2D envMap;
 
 #endif
 
-#define PI 3.141592653589793
-#define PI2 6.283185307179586
-#define PI_HALF 1.5707963267948966
-#define RECIPROCAL_PI 0.3183098861837907
-#define RECIPROCAL_PI2 0.15915494309189535
-#define EPSILON 1e-6
-#ifndef saturate
-#define saturate( a ) clamp( a, 0.0, 1.0 )
-#endif
-#define whiteComplement( a ) ( 1.0 - saturate( a ) )
-float pow2( const in float x ) { return x*x; }
-vec3 pow2( const in vec3 x ) { return x*x; }
-float pow3( const in float x ) { return x*x*x; }
-float pow4( const in float x ) { float x2 = x*x; return x2*x2; }
-float max3( const in vec3 v ) { return max( max( v.x, v.y ), v.z ); }
-float average( const in vec3 v ) { return dot( v, vec3( 0.3333333 ) ); }
-highp float rand( const in vec2 uv ) {
-	const highp float a = 12.9898, b = 78.233, c = 43758.5453;
-	highp float dt = dot( uv.xy, vec2( a,b ) ), sn = mod( dt, PI );
-	return fract( sin( sn ) * c );
-}
-#ifdef HIGH_PRECISION
-	float precisionSafeLength( vec3 v ) { return length( v ); }
-#else
-	float precisionSafeLength( vec3 v ) {
-		float maxComponent = max3( abs( v ) );
-		return length( v / maxComponent ) * maxComponent;
+#define TEXTURE_SIZE_3D 8.0
+
+uniform float flipEnvMap;
+uniform float backgroundBlurriness;
+uniform float backgroundIntensity;
+uniform mat3 backgroundRotation;
+
+uniform sampler2D texture3d;
+
+varying vec3 vWorldDirection;
+
+#ifdef ENVMAP_TYPE_CUBE_UV
+	#define cubeUV_minMipLevel 4.0
+	#define cubeUV_minTileSize 16.0
+	float getFace( vec3 direction ) {
+		vec3 absDirection = abs( direction );
+		float face = - 1.0;
+		if ( absDirection.x > absDirection.z ) {
+			if ( absDirection.x > absDirection.y )
+				face = direction.x > 0.0 ? 0.0 : 3.0;
+			else
+				face = direction.y > 0.0 ? 1.0 : 4.0;
+		} else {
+			if ( absDirection.z > absDirection.y )
+				face = direction.z > 0.0 ? 2.0 : 5.0;
+			else
+				face = direction.y > 0.0 ? 1.0 : 4.0;
+		}
+		return face;
+	}
+	vec2 getUV( vec3 direction, float face ) {
+		vec2 uv;
+		if ( face == 0.0 ) {
+			uv = vec2( direction.z, direction.y ) / abs( direction.x );
+		} else if ( face == 1.0 ) {
+			uv = vec2( - direction.x, - direction.z ) / abs( direction.y );
+		} else if ( face == 2.0 ) {
+			uv = vec2( - direction.x, direction.y ) / abs( direction.z );
+		} else if ( face == 3.0 ) {
+			uv = vec2( - direction.z, direction.y ) / abs( direction.x );
+		} else if ( face == 4.0 ) {
+			uv = vec2( - direction.x, direction.z ) / abs( direction.y );
+		} else {
+			uv = vec2( direction.x, direction.y ) / abs( direction.z );
+		}
+		return 0.5 * ( uv + 1.0 );
+	}
+	vec3 bilinearCubeUV( sampler2D envMap, vec3 direction, float mipInt ) {
+		float face = getFace( direction );
+		float filterInt = max( cubeUV_minMipLevel - mipInt, 0.0 );
+		mipInt = max( mipInt, cubeUV_minMipLevel );
+		float faceSize = exp2( mipInt );
+		highp vec2 uv = getUV( direction, face ) * ( faceSize - 2.0 ) + 1.0;
+		if ( face > 2.0 ) {
+			uv.y += faceSize;
+			face -= 3.0;
+		}
+		uv.x += face * faceSize;
+		uv.x += filterInt * 3.0 * cubeUV_minTileSize;
+		uv.y += 4.0 * ( exp2( CUBEUV_MAX_MIP ) - faceSize );
+		uv.x *= CUBEUV_TEXEL_WIDTH;
+		uv.y *= CUBEUV_TEXEL_HEIGHT;
+		#ifdef texture2DGradEXT
+			return texture2DGradEXT( envMap, uv, vec2( 0.0 ), vec2( 0.0 ) ).rgb;
+		#else
+			return texture2D( envMap, uv ).rgb;
+		#endif
+	}
+	#define cubeUV_r0 1.0
+	#define cubeUV_m0 - 2.0
+	#define cubeUV_r1 0.8
+	#define cubeUV_m1 - 1.0
+	#define cubeUV_r4 0.4
+	#define cubeUV_m4 2.0
+	#define cubeUV_r5 0.305
+	#define cubeUV_m5 3.0
+	#define cubeUV_r6 0.21
+	#define cubeUV_m6 4.0
+	float roughnessToMip( float roughness ) {
+		float mip = 0.0;
+		if ( roughness >= cubeUV_r1 ) {
+			mip = ( cubeUV_r0 - roughness ) * ( cubeUV_m1 - cubeUV_m0 ) / ( cubeUV_r0 - cubeUV_r1 ) + cubeUV_m0;
+		} else if ( roughness >= cubeUV_r4 ) {
+			mip = ( cubeUV_r1 - roughness ) * ( cubeUV_m4 - cubeUV_m1 ) / ( cubeUV_r1 - cubeUV_r4 ) + cubeUV_m1;
+		} else if ( roughness >= cubeUV_r5 ) {
+			mip = ( cubeUV_r4 - roughness ) * ( cubeUV_m5 - cubeUV_m4 ) / ( cubeUV_r4 - cubeUV_r5 ) + cubeUV_m4;
+		} else if ( roughness >= cubeUV_r6 ) {
+			mip = ( cubeUV_r5 - roughness ) * ( cubeUV_m6 - cubeUV_m5 ) / ( cubeUV_r5 - cubeUV_r6 ) + cubeUV_m5;
+		} else {
+			mip = - 2.0 * log2( 1.16 * roughness );		}
+		return mip;
+	}
+	vec4 textureCubeUV( sampler2D envMap, vec3 sampleDir, float roughness ) {
+		float mip = clamp( roughnessToMip( roughness ), cubeUV_m0, CUBEUV_MAX_MIP );
+		float mipF = fract( mip );
+		float mipInt = floor( mip );
+		vec3 color0 = bilinearCubeUV( envMap, sampleDir, mipInt );
+		if ( mipF == 0.0 ) {
+			return vec4( color0, 1.0 );
+		} else {
+			vec3 color1 = bilinearCubeUV( envMap, sampleDir, mipInt + 1.0 );
+			return vec4( mix( color0, color1, mipF ), 1.0 );
+		}
 	}
 #endif
-struct IncidentLight {
-	vec3 color;
-	vec3 direction;
-	bool visible;
-};
-struct ReflectedLight {
-	vec3 directDiffuse;
-	vec3 directSpecular;
-	vec3 indirectDiffuse;
-	vec3 indirectSpecular;
-};
-#ifdef USE_ALPHAHASH
-	varying vec3 vPosition;
-#endif
-vec3 transformDirection( in vec3 dir, in mat4 matrix ) {
-	return normalize( ( matrix * vec4( dir, 0.0 ) ).xyz );
-}
-vec3 inverseTransformDirection( in vec3 dir, in mat4 matrix ) {
-	return normalize( ( vec4( dir, 0.0 ) * matrix ).xyz );
-}
-mat3 transposeMat3( const in mat3 m ) {
-	mat3 tmp;
-	tmp[ 0 ] = vec3( m[ 0 ].x, m[ 1 ].x, m[ 2 ].x );
-	tmp[ 1 ] = vec3( m[ 0 ].y, m[ 1 ].y, m[ 2 ].y );
-	tmp[ 2 ] = vec3( m[ 0 ].z, m[ 1 ].z, m[ 2 ].z );
-	return tmp;
-}
-bool isPerspectiveMatrix( mat4 m ) {
-	return m[ 2 ][ 3 ] == - 1.0;
-}
-vec2 equirectUv( in vec3 dir ) {
-	float u = atan( dir.z, dir.x ) * RECIPROCAL_PI2 + 0.5;
-	float v = asin( clamp( dir.y, - 1.0, 1.0 ) ) * RECIPROCAL_PI + 0.5;
-	return vec2( u, v );
-}
-vec3 BRDF_Lambert( const in vec3 diffuseColor ) {
-	return RECIPROCAL_PI * diffuseColor;
-}
-vec3 F_Schlick( const in vec3 f0, const in float f90, const in float dotVH ) {
-	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
-	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
-}
-float F_Schlick( const in float f0, const in float f90, const in float dotVH ) {
-	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
-	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
-} // validated
-vec3 packNormalToRGB( const in vec3 normal ) {
-	return normalize( normal ) * 0.5 + 0.5;
-}
-vec3 unpackRGBToNormal( const in vec3 rgb ) {
-	return 2.0 * rgb.xyz - 1.0;
-}
-const float PackUpscale = 256. / 255.;const float UnpackDownscale = 255. / 256.;const float ShiftRight8 = 1. / 256.;
-const float Inv255 = 1. / 255.;
-const vec4 PackFactors = vec4( 1.0, 256.0, 256.0 * 256.0, 256.0 * 256.0 * 256.0 );
-const vec2 UnpackFactors2 = vec2( UnpackDownscale, 1.0 / PackFactors.g );
-const vec3 UnpackFactors3 = vec3( UnpackDownscale / PackFactors.rg, 1.0 / PackFactors.b );
-const vec4 UnpackFactors4 = vec4( UnpackDownscale / PackFactors.rgb, 1.0 / PackFactors.a );
-vec4 packDepthToRGBA( const in float v ) {
-	if( v <= 0.0 )
-		return vec4( 0., 0., 0., 0. );
-	if( v >= 1.0 )
-		return vec4( 1., 1., 1., 1. );
-	float vuf;
-	float af = modf( v * PackFactors.a, vuf );
-	float bf = modf( vuf * ShiftRight8, vuf );
-	float gf = modf( vuf * ShiftRight8, vuf );
-	return vec4( vuf * Inv255, gf * PackUpscale, bf * PackUpscale, af );
-}
-vec3 packDepthToRGB( const in float v ) {
-	if( v <= 0.0 )
-		return vec3( 0., 0., 0. );
-	if( v >= 1.0 )
-		return vec3( 1., 1., 1. );
-	float vuf;
-	float bf = modf( v * PackFactors.b, vuf );
-	float gf = modf( vuf * ShiftRight8, vuf );
-	return vec3( vuf * Inv255, gf * PackUpscale, bf );
-}
-vec2 packDepthToRG( const in float v ) {
-	if( v <= 0.0 )
-		return vec2( 0., 0. );
-	if( v >= 1.0 )
-		return vec2( 1., 1. );
-	float vuf;
-	float gf = modf( v * 256., vuf );
-	return vec2( vuf * Inv255, gf );
-}
-float unpackRGBAToDepth( const in vec4 v ) {
-	return dot( v, UnpackFactors4 );
-}
-float unpackRGBToDepth( const in vec3 v ) {
-	return dot( v, UnpackFactors3 );
-}
-float unpackRGToDepth( const in vec2 v ) {
-	return v.r * UnpackFactors2.r + v.g * UnpackFactors2.g;
-}
-vec4 pack2HalfToRGBA( const in vec2 v ) {
-	vec4 r = vec4( v.x, fract( v.x * 255.0 ), v.y, fract( v.y * 255.0 ) );
-	return vec4( r.x - r.y / 255.0, r.y, r.z - r.w / 255.0, r.w );
-}
-vec2 unpackRGBATo2Half( const in vec4 v ) {
-	return vec2( v.x + ( v.y / 255.0 ), v.z + ( v.w / 255.0 ) );
-}
-float viewZToOrthographicDepth( const in float viewZ, const in float near, const in float far ) {
-	return ( viewZ + near ) / ( near - far );
-}
-float orthographicDepthToViewZ( const in float depth, const in float near, const in float far ) {
-	return depth * ( near - far ) - near;
-}
-float viewZToPerspectiveDepth( const in float viewZ, const in float near, const in float far ) {
-	return ( ( near + viewZ ) * far ) / ( ( far - near ) * viewZ );
-}
-float perspectiveDepthToViewZ( const in float depth, const in float near, const in float far ) {
-	return ( near * far ) / ( ( far - near ) * depth - far );
-}
-#if defined( USE_UV ) || defined( USE_ANISOTROPY )
-	varying vec2 vUv;
-#endif
-#ifdef USE_MAP
-	varying vec2 vMapUv;
-#endif
-#ifdef USE_ALPHAMAP
-	varying vec2 vAlphaMapUv;
-#endif
-#ifdef USE_LIGHTMAP
-	varying vec2 vLightMapUv;
-#endif
-#ifdef USE_AOMAP
-	varying vec2 vAoMapUv;
-#endif
-#ifdef USE_BUMPMAP
-	varying vec2 vBumpMapUv;
-#endif
-#ifdef USE_NORMALMAP
-	varying vec2 vNormalMapUv;
-#endif
-#ifdef USE_EMISSIVEMAP
-	varying vec2 vEmissiveMapUv;
-#endif
-#ifdef USE_METALNESSMAP
-	varying vec2 vMetalnessMapUv;
-#endif
-#ifdef USE_ROUGHNESSMAP
-	varying vec2 vRoughnessMapUv;
-#endif
-#ifdef USE_ANISOTROPYMAP
-	varying vec2 vAnisotropyMapUv;
-#endif
-#ifdef USE_CLEARCOATMAP
-	varying vec2 vClearcoatMapUv;
-#endif
-#ifdef USE_CLEARCOAT_NORMALMAP
-	varying vec2 vClearcoatNormalMapUv;
-#endif
-#ifdef USE_CLEARCOAT_ROUGHNESSMAP
-	varying vec2 vClearcoatRoughnessMapUv;
-#endif
-#ifdef USE_IRIDESCENCEMAP
-	varying vec2 vIridescenceMapUv;
-#endif
-#ifdef USE_IRIDESCENCE_THICKNESSMAP
-	varying vec2 vIridescenceThicknessMapUv;
-#endif
-#ifdef USE_SHEEN_COLORMAP
-	varying vec2 vSheenColorMapUv;
-#endif
-#ifdef USE_SHEEN_ROUGHNESSMAP
-	varying vec2 vSheenRoughnessMapUv;
-#endif
-#ifdef USE_SPECULARMAP
-	varying vec2 vSpecularMapUv;
-#endif
-#ifdef USE_SPECULAR_COLORMAP
-	varying vec2 vSpecularColorMapUv;
-#endif
-#ifdef USE_SPECULAR_INTENSITYMAP
-	varying vec2 vSpecularIntensityMapUv;
-#endif
-#ifdef USE_TRANSMISSIONMAP
-	uniform mat3 transmissionMapTransform;
-	varying vec2 vTransmissionMapUv;
-#endif
-#ifdef USE_THICKNESSMAP
-	uniform mat3 thicknessMapTransform;
-	varying vec2 vThicknessMapUv;
-#endif
-#ifdef USE_MAP
-	uniform sampler2D map;
-#endif
-#ifdef USE_ALPHAMAP
-	uniform sampler2D alphaMap;
-#endif
-#ifdef USE_ALPHATEST
-	uniform float alphaTest;
-#endif
-#ifdef USE_ALPHAHASH
-	const float ALPHA_HASH_SCALE = 0.05;
-	float hash2D( vec2 value ) {
-		return fract( 1.0e4 * sin( 17.0 * value.x + 0.1 * value.y ) * ( 0.1 + abs( sin( 13.0 * value.y + value.x ) ) ) );
-	}
-	float hash3D( vec3 value ) {
-		return hash2D( vec2( hash2D( value.xy ), value.z ) );
-	}
-	float getAlphaHashThreshold( vec3 position ) {
-		float maxDeriv = max(
-			length( dFdx( position.xyz ) ),
-			length( dFdy( position.xyz ) )
-		);
-		float pixScale = 1.0 / ( ALPHA_HASH_SCALE * maxDeriv );
-		vec2 pixScales = vec2(
-			exp2( floor( log2( pixScale ) ) ),
-			exp2( ceil( log2( pixScale ) ) )
-		);
-		vec2 alpha = vec2(
-			hash3D( floor( pixScales.x * position.xyz ) ),
-			hash3D( floor( pixScales.y * position.xyz ) )
-		);
-		float lerpFactor = fract( log2( pixScale ) );
-		float x = ( 1.0 - lerpFactor ) * alpha.x + lerpFactor * alpha.y;
-		float a = min( lerpFactor, 1.0 - lerpFactor );
-		vec3 cases = vec3(
-			x * x / ( 2.0 * a * ( 1.0 - a ) ),
-			( x - 0.5 * a ) / ( 1.0 - a ),
-			1.0 - ( ( 1.0 - x ) * ( 1.0 - x ) / ( 2.0 * a * ( 1.0 - a ) ) )
-		);
-		float threshold = ( x < ( 1.0 - a ) )
-			? ( ( x < a ) ? cases.x : cases.y )
-			: cases.z;
-		return clamp( threshold , 1.0e-6, 1.0 );
-	}
-#endif
-#if defined( USE_LOGDEPTHBUF )
-	uniform float logDepthBufFC;
-	varying float vFragDepth;
-	varying float vIsPerspective;
-#endif
-#if 0 > 0
-	varying vec3 vClipPosition;
-	uniform vec4 clippingPlanes[ 0 ];
-#endif
 
-varying vec2 vHighPrecisionZW;
+vec3 sampleNoise3d(vec3 p) {
+	vec3 pp = p ;
+	vec3 p2 = fract((pp + vec3(1.0)) / 2.0);
+	float size = TEXTURE_SIZE_3D;
+	float yIndex = p2.z * (size * size - 1.0);
+	float row = floor(yIndex / size);
+	float col = floor(yIndex - row * size);
+	vec2 uv2 = (vec2(col, row) + p2.xy) / size;
+	return texture(texture3d, uv2).rgb;
+}
 
 void main() {
 
-	vec4 diffuseColor = vec4( 1.0 );
-#if 0 > 0
-	vec4 plane;
-	#ifdef ALPHA_TO_COVERAGE
-		float distanceToPlane, distanceGradient;
-		float clipOpacity = 1.0;
-		
-		#if 0 < 0
-			float unionClipOpacity = 1.0;
-			
-			clipOpacity *= 1.0 - unionClipOpacity;
-		#endif
-		diffuseColor.a *= clipOpacity;
-		if ( diffuseColor.a == 0.0 ) discard;
+	#ifdef ENVMAP_TYPE_CUBE
+
+	vec4 texColor = textureCube(envMap, backgroundRotation * vec3(flipEnvMap * vWorldDirection.x, vWorldDirection.yz));
+
+	#elif defined( ENVMAP_TYPE_CUBE_UV )
+
+	vec4 texColor = textureCubeUV(envMap, backgroundRotation * vWorldDirection, backgroundBlurriness);
+
 	#else
-		
-		#if 0 < 0
-			bool clipped = true;
-			
-			if ( clipped ) discard;
-		#endif
-	#endif
-#endif
 
-	#if DEPTH_PACKING == 3200
-
-		diffuseColor.a = opacity;
+	vec4 texColor = vec4(0.0, 0.0, 0.0, 1.0);
 
 	#endif
 
-#ifdef USE_MAP
-	vec4 sampledDiffuseColor = texture2D( map, vMapUv );
-	#ifdef DECODE_VIDEO_TEXTURE
-		sampledDiffuseColor = sRGBTransferEOTF( sampledDiffuseColor );
-	#endif
-	diffuseColor *= sampledDiffuseColor;
-#endif
-#ifdef USE_ALPHAMAP
-	diffuseColor.a *= texture2D( alphaMap, vAlphaMapUv ).g;
-#endif
-#ifdef USE_ALPHATEST
-	#ifdef ALPHA_TO_COVERAGE
-	diffuseColor.a = smoothstep( alphaTest, alphaTest + fwidth( diffuseColor.a ), diffuseColor.a );
-	if ( diffuseColor.a == 0.0 ) discard;
-	#else
-	if ( diffuseColor.a < alphaTest ) discard;
-	#endif
-#endif
-#ifdef USE_ALPHAHASH
-	if ( diffuseColor.a < getAlphaHashThreshold( vPosition ) ) discard;
-#endif
+	texColor.rgb *= backgroundIntensity;
 
-#if defined( USE_LOGDEPTHBUF )
-	gl_FragDepth = vIsPerspective == 0.0 ? gl_FragCoord.z : log2( vFragDepth ) * logDepthBufFC * 0.5;
-#endif
+	vec3 normalizedWorldDirection = normalize(vWorldDirection);
+	gl_FragColor.rgb = sampleNoise3d(vWorldDirection);
+	gl_FragColor.a = 1.0;
 
 	
-	float fragCoordZ = 0.5 * vHighPrecisionZW[0] / vHighPrecisionZW[1] + 0.5;
 
-	#if DEPTH_PACKING == 3200
+	
 
-		gl_FragColor = vec4( vec3( 1.0 - fragCoordZ ), opacity );
-
-	#elif DEPTH_PACKING == 3201
-
-		gl_FragColor = packDepthToRGBA( fragCoordZ );
-
-	#elif DEPTH_PACKING == 3202
-
-		gl_FragColor = vec4( packDepthToRGB( fragCoordZ ), diffuseColor.a );
-
-	#elif DEPTH_PACKING == 3203
-
-		gl_FragColor = vec4( packDepthToRG( fragCoordZ ), 0.0, 1.0 );
-
-	#endif
+#if defined( TONE_MAPPING )
+	gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+#endif
+gl_FragColor = linearToOutputTexel( gl_FragColor );
 
 }

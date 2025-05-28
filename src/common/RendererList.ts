@@ -15,19 +15,20 @@ export const enum RenderersEnum {
 	step3 = 'Step3',
 	step4 = 'Step4',
 	step5 = 'Step5',
+	step6 = 'Step6',
 	temporalRenderer = 'temporal-renderer',
 	fogRenderer = 'FogRenderer',
 	depth = 'Depth',
 }
 
 export class RendererInfo {
-	public constructor(public id: RenderersEnum, public className: MyClassConstructor, public description?: string) {}
+	public constructor(public id: RenderersEnum | string, public className: MyClassConstructor, public description?: string) {}
 }
 
 class RenderersReposditory {
 	private rendererList: Record<string, RendererInfo[]> = {}
 
-	public register(id: RenderersEnum, className: MyClassConstructor, group?: string, description?: string) {
+	public register(id: RenderersEnum | string, className: MyClassConstructor, group?: string, description?: string) {
 		const info = new RendererInfo(id, className, description)
 
 		if (!group) {

@@ -35,6 +35,7 @@ import {
 	FrontSide,
 	MeshBasicMaterial,
 	UniformsUtils,
+	texture3d,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
@@ -55,9 +56,8 @@ import depthAndAlphaFragSource from '@/tattoo-rendering/step5/shaders/alpha_and_
 import smokeVert from '@/tattoo-rendering/step5/shaders/smoke_vert.glsl'
 import smokeFrag from '@/tattoo-rendering/step5/shaders/smoke_frag.glsl'
 
-import backgroundVert from '@/tattoo-rendering/step5/shaders/background_cube.vert.glsl'
-import backgroundFrag from '@/tattoo-rendering/step5/shaders/background_cube.frag.glsl'
-import { Particles } from './Particles'
+import backgroundVert from '@/tattoo-rendering/step6-simplify/shaders/background_cube.vert.glsl'
+import backgroundFrag from '@/tattoo-rendering/step6-simplify/shaders/background_cube.frag.glsl'
 
 /**
  * Shader for rendering depth and alpha into a texture
@@ -129,18 +129,27 @@ const SmokeShader = {
 
 const BackgroundCubeShader = {
 	uniforms: {
+		time: {value: null},
 		envMap: { value: null },
+		texture3d: {value: null},
 		flipEnvMap: { value: -1 },
 		backgroundBlurriness: { value: 0 },
 		backgroundIntensity: { value: 1 },
 		backgroundRotation: { value: /*@__PURE__*/ new Matrix3() },
+
+        baseColor: { value: new Color(0x111111) },
+        smokeColor: { value: new Color(0xeeeeee) },
+        density: { value: 1.5 },
+        speed: { value: 0.2 },
+        scale: { value: 0.5 },
+        worldDirection: { value: new Vector3(0, 1, 0) } // Default upward direction
 	},
 
 	vertexShader: backgroundVert,
 	fragmentShader: backgroundFrag,
 }
 
-export class Step5 implements Renderer {
+export class Step6 implements Renderer {
 	/**
 	 * CONSTANTS
 	 */
@@ -269,9 +278,9 @@ export class Step5 implements Renderer {
 		void main() {
 			vec4 smoke = texture2D(smokeBuffer, vUv);
 			vec4 scene = texture2D(readBuffer, vUv);
-			gl_FragColor.rgb = mix(texture2D(readBuffer, vUv).rgb * 1.5, smoke.rgb, 3.0 * smoke.a);
+			// gl_FragColor.rgb = mix(texture2D(readBuffer, vUv).rgb * 1.5, smoke.rgb, 3.0 * smoke.a);
 			// gl_FragColor.rgb = scene.rgb + smoke.rgb;
-			// gl_FragColor.rgb = scene.rgb;
+			gl_FragColor.rgb = scene.rgb;
 			gl_FragColor.a = scene.a;
 		}`,
 
@@ -295,6 +304,8 @@ export class Step5 implements Renderer {
 
 	// smoke parameters
 	public noise3dScale = 2.0
+
+	public scale2 = 0.1
 
 	public density = 0.3
 
@@ -324,12 +335,8 @@ export class Step5 implements Renderer {
 		depthTest: false,
 		depthWrite: false,
 		fog: false,
-		//@ts-expect-error
 		// allowOverride: false,
 	})
-
-	//@ts-expect-error
-	private particles: Particles
 
 	public constructor() {
 		this.renderer = new WebGLRenderer({ antialias: true, premultipliedAlpha: false })
@@ -363,6 +370,7 @@ export class Step5 implements Renderer {
 		// this.gui.add(this, 'scale', 0.0, 10.0)
 		this.gui.add(this, 'noise3dScale', 0.0, 6.0)
 		this.gui.add(this, 'density', 0.0, 0.5)
+		this.gui.add(this, 'scale2', 0.0, 1.0)
 
 		//@ts-expect-error
 		window.renderer = this.renderer
@@ -495,11 +503,11 @@ export class Step5 implements Renderer {
 				resolve(texture)
 			})
 		)
-		this.smokeMaterial.uniforms['texture3d'].value = texture3d
+		this.smokeMaterial.uniforms.texture3d.value = texture3d
+
+		this.boxMeshMaterial.uniforms.texture3d.value = texture3d
 
 		this.startTime = Date.now()
-
-		this.particles = await Particles.create(this.scene)
 
 		// some debug
 		callOnceDelayed(() => dumpShaderProgram(this.renderer, this.boxMeshMaterial))
@@ -549,6 +557,9 @@ export class Step5 implements Renderer {
 		this.smokeMaterial.uniforms.tDepth.value = this.depthBuffer.texture
 		this.smokeMaterial.uniforms.cameraPosition.value = this.camera.position
 		this.smokeMaterial.uniforms.time.value = (Date.now() - this.startTime) / 4000
+		
+		this.boxMeshMaterial.uniforms.time.value = (Date.now() - this.startTime) / 4000
+		this.boxMeshMaterial.uniforms.scale.value = this.scale2
 
 		this.light.shadow.camera.updateProjectionMatrix()
 		this.smokeMaterial.uniforms.shadowMap.value = this.light.shadow.map!.texture
@@ -579,8 +590,6 @@ export class Step5 implements Renderer {
 		this.fsQuad.render(this.renderer)
 
 		this.animId = requestAnimationFrame(async () => await this.animate())
-
-		this.particles.update()
 
 		this.stats.end()
 	}
@@ -615,4 +624,4 @@ export class Step5 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step5, Step5, 'Arm', 'add particles, tweaks fog')
+renderersReposditory.register(RenderersEnum.step6, Step6, 'Arm', 'simplify everything')

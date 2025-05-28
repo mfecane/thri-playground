@@ -1,5 +1,3 @@
-// paste shader code here for debug
-
 #version 300 es
 
 #define attribute in

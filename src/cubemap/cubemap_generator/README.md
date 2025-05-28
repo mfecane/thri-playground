@@ -1,0 +1,1 @@
+Capture scene as cube map scene

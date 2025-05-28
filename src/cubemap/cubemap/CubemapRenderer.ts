@@ -12,19 +12,20 @@ import {
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js'
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
-
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
-import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js'
-
 import depthVert from './shaders/quad_vert.glsl'
 import depthFrag from './shaders/cube_sampler_blurred.glsl'
+import { Renderer } from '@/common/Renderer'
+import { renderersReposditory } from '@/common/RendererList'
 
 let mMaterial: ShaderMaterial
 
-export class Biba {
+export class CubemapRenderer implements Renderer {
 	public renderer = new WebGLRenderer()
+
+	private width = window.innerWidth
+
+	private height = window.innerHeight
 
 	private camera = new PerspectiveCamera(45, this.width / this.height, 0.1, 1000.0)
 
@@ -32,11 +33,11 @@ export class Biba {
 
 	private controls = new OrbitControls(this.camera, this.renderer.domElement)
 
-	private composer = new EffectComposer(this.renderer)
-
 	private fsQuad = new FullScreenQuad()
 
-	public constructor(private width: number, private height: number) {
+	private animId: number = -1
+
+	public constructor() {
 		mMaterial = new ShaderMaterial({
 			defines: {
 				ENVMAP_TYPE_CUBE_UV: 1,
@@ -81,16 +82,38 @@ export class Biba {
 		mMaterial.uniforms.resolution.value = new Vector2(this.width, this.height)
 		mMaterial.uniforms.envMap.value = texture
 		this.fsQuad.material = mMaterial
+		
+		document.body.appendChild(this.renderer.domElement)
 	}
 
-	public render() {
+	public async animate(): Promise<void> {
 		this.controls.update()
-
-		// this.composer.render()
 		this.fsQuad.render(this.renderer)
-		const s = new Scene()
-		this.renderer.autoClear = false
-		s.add(new AxesHelper())
-		this.renderer.render(s, this.camera)
+		// const s = new Scene()
+		// this.renderer.autoClear = false
+		// s.add(new AxesHelper())
+		// this.renderer.render(s, this.camera)
+
+		
+		this.animId = requestAnimationFrame(async () => await this.animate())
+	}
+
+	public async onResize(width: number, height: number): Promise<void> {
+		this.width = width
+		this.height = height
+
+		this.renderer.setSize(this.width, this.height)
+
+		this.camera.aspect = this.width / this.height
+		this.camera.updateProjectionMatrix()
+	}
+
+	public async destroy(): Promise<void> {
+		cancelAnimationFrame(this.animId)
+		this.renderer.dispose()
+		this.renderer.domElement.remove()
 	}
 }
+
+
+renderersReposditory.register('CubemapRenderer', CubemapRenderer, 'CubemapRenderer', '')
