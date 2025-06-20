@@ -19,6 +19,7 @@ export const enum RenderersEnum {
 	temporalRenderer = 'temporal-renderer',
 	fogRenderer = 'FogRenderer',
 	depth = 'Depth',
+	website = 'Website',
 }
 
 export class RendererInfo {

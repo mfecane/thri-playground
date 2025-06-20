@@ -2,9 +2,7 @@ Random three.js shit
 
 # Run
 
-        npm run gulp --task dev:tattoo-rendering
-
-        npm run tattoo-rendering
+        npm run dev
 
 ## Rullup
         
@@ -42,3 +40,6 @@ Random three.js shit
         Transparency
         3x Spheres
         Particles
+
+# Website
+
