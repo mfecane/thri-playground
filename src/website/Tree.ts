@@ -37,7 +37,7 @@ function hasAnyAttractorNear(pos: THREE.Vector3, attractors: Attractor[], maxDis
 
 export function generateSpaceColonizationTree({
 	attractorCount = 100,
-	branchLength = 0.3,
+	branchLength = 0.1,
 	minDist = 0.3,
 	maxDist = 2,
 	trunkHeight = 1.5,
@@ -48,7 +48,11 @@ export function generateSpaceColonizationTree({
 	// Attractors
 	const attractors: Attractor[] = []
 	for (let i = 0; i < attractorCount; i++) {
-		const a = new Attractor((Math.random() - 0.5) * 4, Math.random() * 5 + trunkHeight, (Math.random() - 0.5) * 4)
+		const a = new Attractor(
+			(Math.random() - 0.3) * 4,
+			Math.random() * 2 + trunkHeight,
+			(Math.random() - 0.3) * 4
+		)
 		attractors.push(a)
 	}
 
@@ -82,7 +86,8 @@ export function generateSpaceColonizationTree({
 
 			if (closest) {
 				const dir = attractor.position.clone().sub(closest.position).normalize()
-				closest.direction.add(dir)
+				dir.x -= 0.3 // bias toward -X direction
+				closest.direction.add(dir.normalize())
 				closest.count++
 			}
 		}
@@ -130,9 +135,8 @@ export function generateSpaceColonizationTree({
 			p = p.parent
 		}
 		const t = 1 - depth / maxDepth
-		const radius = 0.005 + 0.015 * t * t
+		const radius = 0.01 + 0.005 * t * t // thinner overall and near tip
 
-		// Geometry aligned with +Y
 		const geometry = new THREE.CylinderGeometry(radius, radius, length, 6, 1, false)
 		geometry.translate(0, length / 2, 0)
 
