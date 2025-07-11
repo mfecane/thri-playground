@@ -1,5 +1,5 @@
 import { Renderer } from '@/common/Renderer'
-import {  renderersReposditory } from '@/common/RendererList'
+import { renderersReposditory } from '@/common/RendererList'
 import { DepthOfFieldEffect, EffectComposer, EffectPass, RenderPass } from 'postprocessing'
 import {
 	AmbientLight,
@@ -20,6 +20,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import * as dat from 'dat.gui'
 import { generateSpaceColonizationTree } from './Tree'
 import { createSakuraFlower } from './Flower'
+import { createSakuraFlower2 } from './Flower2'
 
 export class Website2 implements Renderer {
 	private width = window.innerWidth
@@ -95,8 +96,11 @@ export class Website2 implements Renderer {
 		// const trunk = generateSpaceColonizationTree()
 		// this.scene.add(trunk)
 
-		const flower = createSakuraFlower()
-		this.scene.add(flower)
+		// const flower = createSakuraFlower()
+		// this.scene.add(flower)
+
+		const d = await createSakuraFlower2()
+		this.scene.add(d)
 	}
 
 	public async animate(): Promise<void> {
