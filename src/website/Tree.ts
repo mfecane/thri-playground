@@ -31,23 +31,28 @@ class Branch {
 	}
 }
 
+function hasAnyAttractorNear(pos: THREE.Vector3, attractors: Attractor[], maxDist: number): boolean {
+	return attractors.some((a) => a.position.distanceTo(pos) < maxDist)
+}
+
 export function generateSpaceColonizationTree({
-	attractorCount = 300,
+	attractorCount = 100,
 	branchLength = 0.3,
 	minDist = 0.3,
 	maxDist = 2,
 	trunkHeight = 1.5,
+	tipMesh = null as THREE.Mesh | null,
 } = {}): THREE.Group {
 	const tree = new THREE.Group()
 
-	// Generate attractors
+	// Attractors
 	const attractors: Attractor[] = []
 	for (let i = 0; i < attractorCount; i++) {
 		const a = new Attractor((Math.random() - 0.5) * 4, Math.random() * 5 + trunkHeight, (Math.random() - 0.5) * 4)
 		attractors.push(a)
 	}
 
-	// Grow initial trunk
+	// Trunk
 	const root = new Branch(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0), null)
 	let current = root
 	const branches: Branch[] = [root]
@@ -58,9 +63,9 @@ export function generateSpaceColonizationTree({
 		current = next
 	}
 
-	// Grow branches
+	// Main growth loop
 	for (let i = 0; i < 150; i++) {
-		for (const attractor of attractors) {
+		for (const attractor of [...attractors]) {
 			let closest: Branch | null = null
 			let closestDist = Infinity
 
@@ -96,8 +101,19 @@ export function generateSpaceColonizationTree({
 		if (newBranches.length === 0) break
 	}
 
-	// Render as cylinders
-	const mat = new THREE.MeshStandardMaterial({ color: 0xffffff })
+	// Compute max depth
+	const maxDepth = branches.reduce((acc, b) => {
+		let depth = 0
+		let p = b.parent
+		while (p) {
+			depth++
+			p = p.parent
+		}
+		return Math.max(acc, depth)
+	}, 0)
+
+	const mat = new THREE.MeshStandardMaterial({ color: 0x473430 })
+
 	for (const b of branches) {
 		if (!b.parent) continue
 
@@ -106,46 +122,35 @@ export function generateSpaceColonizationTree({
 		const direction = new THREE.Vector3().subVectors(end, start)
 		const length = direction.length()
 
-		const geometry = new THREE.CylinderGeometry(0.02, 0.02, length, 6)
-		geometry.translate(0, length / 2, 0) // shift so base is at origin
+		// Depth-based thickness
+		let depth = 0
+		let p = b
+		while (p.parent) {
+			depth++
+			p = p.parent
+		}
+		const t = 1 - depth / maxDepth
+		const radius = 0.005 + 0.015 * t * t
 
-		const material = new THREE.MeshStandardMaterial({ color: 0xffffff })
-		const mesh = new THREE.Mesh(geometry, material)
+		// Geometry aligned with +Y
+		const geometry = new THREE.CylinderGeometry(radius, radius, length, 6, 1, false)
+		geometry.translate(0, length / 2, 0)
 
-		// Position and rotate the mesh
+		const mesh = new THREE.Mesh(geometry, mat)
 		mesh.position.copy(start)
-
-		// Create quaternion that rotates Y-axis to the direction vector
 		mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize())
 
 		tree.add(mesh)
-	}
 
-	// === Add Flowers at Tips ===
-	const flowerMat = new THREE.MeshStandardMaterial({ color: 0xff69b4 })
-
-	const tipPositions = new Set<string>()
-	const allPositions = new Set(branches.map((b) => b.position.toArray().toString()))
-
-	// Find tips (no child starts at this position)
-	for (const b of branches) {
-		if (!branches.some((other) => other.parent === b)) {
-			const flowerGeo = new THREE.ConeGeometry(0.05, 0.15, 6)
-			const flower = new THREE.Mesh(flowerGeo, flowerMat)
-
-			flower.position.copy(b.position)
-
-			// Random upward rotation
-			const randAngle = Math.random() * Math.PI * 2
-			flower.rotation.set(-Math.PI / 2, randAngle, 0)
-
-			tree.add(flower)
+		// Optional tip decoration
+		const isTip = !branches.some((other) => other.parent === b)
+		if (isTip && tipMesh) {
+			const leaf = tipMesh.clone()
+			leaf.position.copy(end)
+			leaf.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize())
+			tree.add(leaf)
 		}
 	}
 
 	return tree
-}
-
-function hasAnyAttractorNear(pos: THREE.Vector3, attractors: Attractor[], maxDist: number): boolean {
-	return attractors.some((a) => a.position.distanceTo(pos) < maxDist)
 }

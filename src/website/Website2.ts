@@ -21,6 +21,7 @@ import * as dat from 'dat.gui'
 import { generateSpaceColonizationTree } from './Tree'
 import { createSakuraFlower } from './Flower'
 import { createSakuraFlower2 } from './Flower2'
+import { generateSmoothCubemap } from './env'
 
 export class Website2 implements Renderer {
 	private width = window.innerWidth
@@ -86,21 +87,26 @@ export class Website2 implements Renderer {
 
 		this.composer.setSize(this.width, this.height)
 
-		// const effectPass = new EffectPass(this.camera, this.dofEffect)
-		// effectPass.renderToScreen = true
-		// this.composer.addPass(effectPass)
+		const effectPass = new EffectPass(this.camera, this.dofEffect)
+		effectPass.renderToScreen = true
+		this.composer.addPass(effectPass)
 
 		const ah = new AxesHelper()
 		this.scene.add(ah)
 
-		// const trunk = generateSpaceColonizationTree()
-		// this.scene.add(trunk)
+		const d = await createSakuraFlower2()
+		d.scale.set(0.1,0.1,0.1)
+		//@ts-expect-error
+		const trunk = generateSpaceColonizationTree({tipMesh: d})
+		this.scene.add(trunk)
 
 		// const flower = createSakuraFlower()
 		// this.scene.add(flower)
 
-		const d = await createSakuraFlower2()
-		this.scene.add(d)
+		// this.scene.add(d)
+
+		const cm = generateSmoothCubemap(this.renderer)
+		this.scene.background = cm
 	}
 
 	public async animate(): Promise<void> {
