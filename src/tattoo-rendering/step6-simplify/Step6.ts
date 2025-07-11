@@ -35,7 +35,6 @@ import {
 	FrontSide,
 	MeshBasicMaterial,
 	UniformsUtils,
-	texture3d,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
@@ -43,7 +42,7 @@ import { Renderer } from '@/common/Renderer'
 import * as dat from 'dat.gui'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { Stats } from '@/common/Stats'
-import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
+import {  renderersReposditory } from '@/common/RendererList'
 import { dumpShaderProgram } from '@/common/ThreeUtils'
 import { callOnceDelayed } from '@/common/lib'
 
@@ -624,4 +623,4 @@ export class Step6 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step6, Step6, 'Arm', 'simplify everything')
+renderersReposditory.register('step6', Step6, 'Arm', 'simplify everything')

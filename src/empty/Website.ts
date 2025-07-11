@@ -1,5 +1,5 @@
 import { Renderer } from '@/common/Renderer'
-import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
+import {  renderersReposditory } from '@/common/RendererList'
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
@@ -44,4 +44,4 @@ export class Website implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.website, Website, 'Website', '')
+renderersReposditory.register('website', Website, 'Website', '')

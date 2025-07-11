@@ -30,7 +30,7 @@ import { Stats } from '@/common/Stats'
 
 import depthVert from './shaders/depth_vert.glsl'
 import depthFrag from './shaders/depth_frag.glsl'
-import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
+import {  renderersReposditory } from '@/common/RendererList'
 
 const DepthShader = {
 	name: 'DepthShader',
@@ -289,4 +289,4 @@ export class Step2 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step2, Step2, 'Arm', 'depth visualization')
+renderersReposditory.register('step2', Step2, 'Arm', 'depth visualization')

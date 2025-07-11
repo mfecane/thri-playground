@@ -1,6 +1,5 @@
 import { Renderer } from './Renderer'
 import { RendererFactory } from './RendererFactory'
-import { RenderersEnum } from './RendererList'
 
 export class RendererManager {
 	private activeRenderer: Renderer | null = null
@@ -9,7 +8,7 @@ export class RendererManager {
 
 	public constructor() {}
 
-	public async setRenderer(id: RenderersEnum) {
+	public async setRenderer(id: string) {
 		this.activeRenderer?.destroy()
 		this.activeRenderer = this.factory.create(id)
 		await this.activeRenderer!.init()

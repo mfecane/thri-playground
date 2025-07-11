@@ -41,7 +41,7 @@ import { Renderer } from '@/common/Renderer'
 import * as dat from 'dat.gui'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { Stats } from '@/common/Stats'
-import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
+import {  renderersReposditory } from '@/common/RendererList'
 import { dumpShaderProgram } from '@/common/ThreeUtils'
 
 import depthVert from '@/tattoo-rendering/step4/shaders/depth_and_alpha_display.vert.glsl'
@@ -572,4 +572,4 @@ export class Step4 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step4, Step4, 'Arm', 'add some fog')
+renderersReposditory.register('step4', Step4, 'Arm', 'add some fog')

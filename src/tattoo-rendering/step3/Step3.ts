@@ -31,7 +31,7 @@ import { Renderer } from '@/common/Renderer'
 import * as dat from 'dat.gui'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { Stats } from '@/common/Stats'
-import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
+import {  renderersReposditory } from '@/common/RendererList'
 import { dumpShaderProgram } from '@/common/ThreeUtils'
 
 import depthVert from './shaders/depth_and_alpha_display.vert.glsl'
@@ -336,4 +336,4 @@ export class Step3 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step3, Step3, 'Arm', 'depth and alpha visualization')
+renderersReposditory.register('step3', Step3, 'Arm', 'depth and alpha visualization')

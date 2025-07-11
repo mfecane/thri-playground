@@ -42,7 +42,7 @@ import { Renderer } from '@/common/Renderer'
 import * as dat from 'dat.gui'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { Stats } from '@/common/Stats'
-import { RenderersEnum, renderersReposditory } from '@/common/RendererList'
+import {  renderersReposditory } from '@/common/RendererList'
 import { dumpShaderProgram } from '@/common/ThreeUtils'
 import { callOnceDelayed } from '@/common/lib'
 
@@ -615,4 +615,4 @@ export class Step5 implements Renderer {
 	}
 }
 
-renderersReposditory.register(RenderersEnum.step5, Step5, 'Arm', 'add particles, tweaks fog')
+renderersReposditory.register('step5', Step5, 'Arm', 'add particles, tweaks fog')

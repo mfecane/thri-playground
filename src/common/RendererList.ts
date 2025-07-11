@@ -3,33 +3,18 @@ import { Step1 } from '@/tattoo-rendering/step1/Step1'
 import { Renderer } from '@/common/Renderer'
 import { TemporalRenderer } from '@/temporal/TemporalRenderer'
 import { FogRenderer } from '@/fog/FogRenderer'
-import { Step2 } from '@/tattoo-rendering/step2/Step2'
 import { Depthpass } from '@/depthpass/Depthpass'
 
 type MyClassConstructor = new (...args: any[]) => Renderer
 
-export const enum RenderersEnum {
-	tattooRendering = 'tattoo-rendering',
-	step1 = 'Step1',
-	step2 = 'Step2',
-	step3 = 'Step3',
-	step4 = 'Step4',
-	step5 = 'Step5',
-	step6 = 'Step6',
-	temporalRenderer = 'temporal-renderer',
-	fogRenderer = 'FogRenderer',
-	depth = 'Depth',
-	website = 'Website',
-}
-
 export class RendererInfo {
-	public constructor(public id: RenderersEnum | string, public className: MyClassConstructor, public description?: string) {}
+	public constructor(public id: string, public className: MyClassConstructor, public description?: string) {}
 }
 
 class RenderersReposditory {
 	private rendererList: Record<string, RendererInfo[]> = {}
 
-	public register(id: RenderersEnum | string, className: MyClassConstructor, group?: string, description?: string) {
+	public register(id: string, className: MyClassConstructor, group?: string, description?: string) {
 		const info = new RendererInfo(id, className, description)
 
 		if (!group) {
@@ -55,7 +40,7 @@ class RenderersReposditory {
 		return this.rendererList[group]
 	}
 
-	public getRendererById(id: RenderersEnum): RendererInfo {
+	public getRendererById(id: string): RendererInfo {
 		let renderer: RendererInfo | null = null
 		Object.keys(this.rendererList).forEach((key) => {
 			const found = this.rendererList[key].find((v) => v.id === id) ?? null
@@ -72,8 +57,8 @@ class RenderersReposditory {
 
 export const renderersReposditory = new RenderersReposditory()
 
-renderersReposditory.register(RenderersEnum.tattooRendering, TattooArmRenderer, 'Arm', 'Tattoo arm rendering')
-renderersReposditory.register(RenderersEnum.step1, Step1, 'Arm')
-renderersReposditory.register(RenderersEnum.temporalRenderer, TemporalRenderer)
-renderersReposditory.register(RenderersEnum.fogRenderer, FogRenderer)
-renderersReposditory.register(RenderersEnum.depth, Depthpass)
+renderersReposditory.register('tattooRendering', TattooArmRenderer, 'Arm', 'Tattoo arm rendering')
+renderersReposditory.register('step1', Step1, 'Arm')
+renderersReposditory.register('temporalRenderer', TemporalRenderer)
+renderersReposditory.register('fogRenderer', FogRenderer)
+renderersReposditory.register('depth', Depthpass)

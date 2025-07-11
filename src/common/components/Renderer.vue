@@ -12,10 +12,9 @@
 <script setup lang="ts">
 import { rendererManager } from '@/common/RendererManager'
 import { onMounted, onBeforeUnmount } from 'vue'
-import { RenderersEnum } from '@/common/RendererList'
 import { RouterLink } from 'vue-router'
 
-const props = defineProps<{ id: RenderersEnum }>()
+const props = defineProps<{ id: string }>()
 
 function onResize() {
 	rendererManager.onResize(window.innerWidth, window.innerHeight)
