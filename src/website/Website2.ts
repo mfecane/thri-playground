@@ -3,6 +3,7 @@ import { renderersReposditory } from '@/common/RendererList'
 import { DepthOfFieldEffect, EffectComposer, EffectPass, RenderPass } from 'postprocessing'
 import {
 	AmbientLight,
+	ArrowHelper,
 	AxesHelper,
 	CylinderGeometry,
 	Group,
@@ -63,8 +64,8 @@ export class Website2 implements Renderer {
 	}
 
 	public async init(): Promise<void> {
-		this.camera.position.set(-2, 5, 10)
-		this.camera.lookAt(0, 5, 0)
+		this.camera.position.set(2.27, 2.11, -3.34)
+		this.camera.quaternion.set(0.002, 0.984, 0.014, -0.17)
 
 		// const lightSphere = new Mesh(new SphereGeometry(10, 32, 32), new MeshBasicMaterial({ color: 0xffffff }))
 		// lightSphere.position.set(0, 0, -50)
@@ -87,18 +88,24 @@ export class Website2 implements Renderer {
 
 		this.composer.setSize(this.width, this.height)
 
-		const effectPass = new EffectPass(this.camera, this.dofEffect)
-		effectPass.renderToScreen = true
-		this.composer.addPass(effectPass)
+		// Depth pass
+		// const effectPass = new EffectPass(this.camera, this.dofEffect)
+		// effectPass.renderToScreen = true
+		// this.composer.addPass(effectPass)
 
 		const ah = new AxesHelper()
 		this.scene.add(ah)
 
 		const d = await createSakuraFlower2()
-		d.scale.set(0.1,0.1,0.1)
-		//@ts-expect-error
-		const trunk = generateSpaceColonizationTree({tipMesh: d})
-		this.scene.add(trunk)
+		d.scale.set(0.1, 0.1, 0.1)
+
+		const result = generateSpaceColonizationTree()
+		this.scene.add(result.group)
+
+		result.originalAttractors.forEach((a) => {
+			const ah = new ArrowHelper(new Vector3(0, 1, 0), a.position, 0.5, 0xff0000)
+			this.scene.add(ah)
+		})
 
 		// const flower = createSakuraFlower()
 		// this.scene.add(flower)
@@ -107,6 +114,11 @@ export class Website2 implements Renderer {
 
 		const cm = generateSmoothCubemap(this.renderer)
 		this.scene.background = cm
+
+		//@ts-expect-error
+		window.SCENE = this.scene
+		//@ts-expect-error
+		window.CAMERA = this.camera
 	}
 
 	public async animate(): Promise<void> {

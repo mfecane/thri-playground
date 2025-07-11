@@ -13,11 +13,15 @@ class Branch {
 	direction: THREE.Vector3 = new THREE.Vector3(0, 0, 0)
 	originalDir: THREE.Vector3
 	count: number = 0
+	depth: number = 0
 
 	constructor(pos: THREE.Vector3, dir: THREE.Vector3, parent: Branch | null) {
 		this.position = pos.clone()
 		this.originalDir = dir.clone()
 		this.parent = parent
+		if (parent) {
+			this.depth = parent.depth + 1
+		}
 	}
 
 	next(): Branch {
@@ -35,48 +39,52 @@ function hasAnyAttractorNear(pos: THREE.Vector3, attractors: Attractor[], maxDis
 	return attractors.some((a) => a.position.distanceTo(pos) < maxDist)
 }
 
-export function generateSpaceColonizationTree({
-	attractorCount = 100,
-	branchLength = 0.1,
-	minDist = 0.3,
-	maxDist = 2,
-	trunkHeight = 1.5,
-	tipMesh = null as THREE.Mesh | null,
-} = {}): THREE.Group {
-	const tree = new THREE.Group()
+class Tip {
+	position: THREE.Vector3 = new THREE.Vector3()
+	direction: THREE.Vector3 = new THREE.Vector3()
+	depth: number = 0
+}
+
+class TreeResult {
+	branches: Branch[] = [new Branch(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0), null)]
+	group: THREE.Group = new THREE.Group()
+	attractors: Attractor[] = []
+	originalAttractors: Attractor[] = []
+	tips: Tip[] = []
+}
+
+export function generateSpaceColonizationTree({ attractorCount = 30, minDist = 0.5, maxDist = 2 } = {}): TreeResult {
+	const treeResult = new TreeResult()
 
 	// Attractors
-	const attractors: Attractor[] = []
+	// const attractors: Attractor[] = []
 	for (let i = 0; i < attractorCount; i++) {
-		const a = new Attractor(
-			(Math.random() - 0.3) * 4,
-			Math.random() * 2 + trunkHeight,
-			(Math.random() - 0.3) * 4
-		)
-		attractors.push(a)
+		const a = new Attractor((Math.random() - 0.5) * 4, Math.random() * 2 + 0.5, Math.random() * 4)
+		treeResult.attractors.push(a)
 	}
 
-	// Trunk
-	const root = new Branch(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0), null)
-	let current = root
-	const branches: Branch[] = [root]
+	treeResult.originalAttractors = [...treeResult.attractors]
 
-	while (!hasAnyAttractorNear(current.position, attractors, maxDist)) {
+	// Trunk
+	let current = treeResult.branches[0]
+
+	while (!hasAnyAttractorNear(current.position, treeResult.attractors, maxDist)) {
 		const next = current.next()
-		branches.push(next)
+		treeResult.branches.push(next)
 		current = next
 	}
 
 	// Main growth loop
 	for (let i = 0; i < 150; i++) {
-		for (const attractor of [...attractors]) {
+		for (const attractor of [...treeResult.attractors]) {
 			let closest: Branch | null = null
 			let closestDist = Infinity
 
-			for (const b of branches) {
+			// find closest branch
+			for (const b of treeResult.branches) {
 				const d = attractor.position.distanceTo(b.position)
 				if (d < minDist) {
-					attractors.splice(attractors.indexOf(attractor), 1)
+					treeResult.attractors.splice(treeResult.attractors.indexOf(attractor), 1)
 					break
 				} else if (d < closestDist && d < maxDist) {
 					closest = b
@@ -86,14 +94,19 @@ export function generateSpaceColonizationTree({
 
 			if (closest) {
 				const dir = attractor.position.clone().sub(closest.position).normalize()
-				dir.x -= 0.3 // bias toward -X direction
 				closest.direction.add(dir.normalize())
 				closest.count++
 			}
 		}
 
 		const newBranches: Branch[] = []
-		for (const b of branches) {
+		for (const b of treeResult.branches) {
+			// decreasing length
+			const branchLength = 0.2
+
+			console.log('branchLength', branchLength)
+			console.log('b.depth', b.depth)
+
 			if (b.count > 0) {
 				const avgDir = b.direction.clone().divideScalar(b.count).normalize()
 				const newBranch = new Branch(b.position.clone().add(avgDir.multiplyScalar(branchLength)), avgDir, b)
@@ -101,13 +114,26 @@ export function generateSpaceColonizationTree({
 				b.reset()
 			}
 		}
-		branches.push(...newBranches)
+		treeResult.branches.push(...newBranches)
 
 		if (newBranches.length === 0) break
 	}
 
+	createBranchMeshes(treeResult)
+
+	// treeResult.tips = treeResult.branches.map(b=>{
+	// 	const tip = new Tip()
+	// 	tip.position = b.position.clone()
+	// 	tip.direction..add(b.direction)
+	// 	return 
+	// })
+
+	return treeResult
+}
+
+function createBranchMeshes(treeResult: TreeResult) {
 	// Compute max depth
-	const maxDepth = branches.reduce((acc, b) => {
+	const maxDepth = treeResult.branches.reduce((acc, b) => {
 		let depth = 0
 		let p = b.parent
 		while (p) {
@@ -119,7 +145,7 @@ export function generateSpaceColonizationTree({
 
 	const mat = new THREE.MeshStandardMaterial({ color: 0x473430 })
 
-	for (const b of branches) {
+	for (const b of treeResult.branches) {
 		if (!b.parent) continue
 
 		const start = b.parent.position
@@ -135,7 +161,7 @@ export function generateSpaceColonizationTree({
 			p = p.parent
 		}
 		const t = 1 - depth / maxDepth
-		const radius = 0.01 + 0.005 * t * t // thinner overall and near tip
+		const radius = 0.01 + 0.05 * t * t // thinner overall and near tip
 
 		const geometry = new THREE.CylinderGeometry(radius, radius, length, 6, 1, false)
 		geometry.translate(0, length / 2, 0)
@@ -144,17 +170,6 @@ export function generateSpaceColonizationTree({
 		mesh.position.copy(start)
 		mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize())
 
-		tree.add(mesh)
-
-		// Optional tip decoration
-		const isTip = !branches.some((other) => other.parent === b)
-		if (isTip && tipMesh) {
-			const leaf = tipMesh.clone()
-			leaf.position.copy(end)
-			leaf.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize())
-			tree.add(leaf)
-		}
+		treeResult.group.add(mesh)
 	}
-
-	return tree
 }
